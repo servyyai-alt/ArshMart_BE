@@ -1,0 +1,39 @@
+import asyncHandler from 'express-async-handler'
+import Order from '../models/Order.js'
+import { createShiprocketOrder, trackOrder, getServiceability } from '../utils/shiprocketAPI.js'
+
+// @desc    Create Shiprocket order
+// @route   POST /api/shipping/create/:orderId
+export const createShipping = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.orderId)
+  if (!order) {
+    res.status(404)
+    throw new Error('Order not found')
+  }
+
+  const srData = await createShiprocketOrder(order)
+
+  order.shiprocketOrderId = srData.order_id
+  order.shiprocketShipmentId = srData.shipment_id
+  if (srData.awb_code) {
+    order.trackingNumber = srData.awb_code
+    order.courierName = srData.courier_name
+  }
+  await order.save()
+
+  res.json({ success: true, data: srData })
+})
+
+// @desc    Track shipment
+// @route   GET /api/shipping/track/:awb
+export const trackShipment = asyncHandler(async (req, res) => {
+  const data = await trackOrder(req.params.awb)
+  res.json({ success: true, data })
+})
+
+// @desc    Check serviceability
+// @route   POST /api/shipping/serviceability
+export const checkServiceability = asyncHandler(async (req, res) => {
+  const data = await getServiceability(req.body)
+  res.json({ success: true, data })
+})
