@@ -21,6 +21,7 @@ import uploadRoutes from './routes/uploadRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
 import galleryRoutes from './routes/galleryRoutes.js'
+import userRoutes from './routes/userRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -81,6 +82,7 @@ app.use('/api/upload', apiLimiter, uploadRoutes)
 app.use('/api/admin', apiLimiter, adminRoutes)
 app.use('/api/settings', apiLimiter, settingsRoutes)
 app.use('/api/gallery', apiLimiter, galleryRoutes)
+app.use('/api/users', apiLimiter, userRoutes)
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {

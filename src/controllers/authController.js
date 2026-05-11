@@ -102,5 +102,6 @@ const sanitizeUser = (user) => ({
   phone: user.phone,
   role: user.role,
   avatar: user.avatar,
+  wishlist: user.wishlist || [],
   createdAt: user.createdAt,
 })

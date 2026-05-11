@@ -59,6 +59,29 @@ export const getProduct = asyncHandler(async (req, res) => {
   res.json({ success: true, product })
 })
 
+// @desc    Get related products
+// @route   GET /api/products/:id/related
+export const getRelatedProducts = asyncHandler(async (req, res) => {
+  const { limit = 8 } = req.query
+  const safeLimit = Math.min(Math.max(Number(limit) || 8, 1), 24)
+
+  const product = await Product.findById(req.params.id).select('_id category isActive')
+  if (!product || !product.isActive) {
+    res.status(404)
+    throw new Error('Product not found')
+  }
+
+  const related = await Product.find({
+    _id: { $ne: product._id },
+    category: product.category,
+    isActive: true,
+  })
+    .sort('-createdAt')
+    .limit(safeLimit)
+
+  res.json({ success: true, products: related })
+})
+
 // @desc    Add product review
 // @route   POST /api/products/:id/reviews
 export const addReview = asyncHandler(async (req, res) => {
