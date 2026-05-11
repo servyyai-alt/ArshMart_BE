@@ -7,6 +7,7 @@ import {
   adminGetAnalytics,
   adminGetGallery, adminAddGallery, adminDeleteGallery,
 } from '../controllers/adminController.js'
+import { adminGetSettings, adminUpdateSettings } from '../controllers/settingsController.js'
 import { protect, adminOnly } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -36,5 +37,8 @@ router.get('/analytics', adminGetAnalytics)
 // Gallery
 router.route('/gallery').get(adminGetGallery).post(adminAddGallery)
 router.delete('/gallery/:publicId', adminDeleteGallery)
+
+// Settings
+router.route('/settings').get(adminGetSettings).put(adminUpdateSettings)
 
 export default router

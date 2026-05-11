@@ -19,6 +19,7 @@ import paymentRoutes from './routes/paymentRoutes.js'
 import shippingRoutes from './routes/shippingRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
+import settingsRoutes from './routes/settingsRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -77,6 +78,7 @@ app.use('/api/payment', apiLimiter, paymentRoutes)
 app.use('/api/shipping', apiLimiter, shippingRoutes)
 app.use('/api/upload', apiLimiter, uploadRoutes)
 app.use('/api/admin', apiLimiter, adminRoutes)
+app.use('/api/settings', apiLimiter, settingsRoutes)
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {
