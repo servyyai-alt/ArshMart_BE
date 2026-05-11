@@ -27,6 +27,7 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
 
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
+  if (payload.shiprocketPickupLocation !== undefined) update['integrations.shiprocket.pickupLocation'] = String(payload.shiprocketPickupLocation || '')
   if (payload.cloudinaryCloudName !== undefined) update['integrations.cloudinary.cloudName'] = String(payload.cloudinaryCloudName || '')
   if (payload.cloudinaryApiKey !== undefined) update['integrations.cloudinary.apiKey'] = String(payload.cloudinaryApiKey || '')
 
@@ -92,4 +93,3 @@ export const getPublicSettings = asyncHandler(async (req, res) => {
     },
   })
 })
-

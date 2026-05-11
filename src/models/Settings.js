@@ -27,6 +27,7 @@ const settingsSchema = new mongoose.Schema(
       shiprocket: {
         email: { type: String, trim: true, lowercase: true, default: '' },
         password: { type: String, default: '' },
+        pickupLocation: { type: String, trim: true, default: 'Primary' },
       },
       cloudinary: {
         cloudName: { type: String, trim: true, default: '' },
@@ -43,4 +44,3 @@ const settingsSchema = new mongoose.Schema(
 const Settings = mongoose.model('Settings', settingsSchema)
 
 export default Settings
-

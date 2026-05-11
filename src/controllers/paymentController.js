@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import Settings from '../models/Settings.js'
+import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 
 let razorpayCache = { keyId: null, keySecret: null, client: null, expiresAt: 0 }
 
@@ -115,7 +116,32 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   await order.save()
 
-  res.json({ success: true, message: 'Payment verified successfully', order })
+  let shiprocket = null
+  let shiprocketError = null
+  if (!order.shiprocketOrderId) {
+    try {
+      const srData = await createShiprocketOrder(order)
+      order.shiprocketOrderId = srData.order_id
+      order.shiprocketShipmentId = srData.shipment_id
+      if (srData.awb_code) {
+        order.trackingNumber = srData.awb_code
+        order.courierName = srData.courier_name
+      }
+      await order.save()
+      shiprocket = {
+        order_id: srData.order_id,
+        shipment_id: srData.shipment_id,
+        awb_code: srData.awb_code,
+        courier_name: srData.courier_name,
+      }
+    } catch (err) {
+      shiprocketError = err.message
+      // Keep payment successful even if shipping setup fails.
+      console.error('Shiprocket create order failed after payment:', err.message)
+    }
+  }
+
+  res.json({ success: true, message: 'Payment verified successfully', order, shiprocket, shiprocketError })
 })
 
 // @desc    Get Razorpay public key (key_id)

@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
+import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 
 // @desc    Create order
 // @route   POST /api/orders
@@ -91,5 +92,20 @@ export const payOrder = asyncHandler(async (req, res) => {
   }
 
   const updatedOrder = await order.save()
+  // Auto-create Shiprocket order after successful payment (best-effort).
+  if (!updatedOrder.shiprocketOrderId) {
+    try {
+      const srData = await createShiprocketOrder(updatedOrder)
+      updatedOrder.shiprocketOrderId = srData.order_id
+      updatedOrder.shiprocketShipmentId = srData.shipment_id
+      if (srData.awb_code) {
+        updatedOrder.trackingNumber = srData.awb_code
+        updatedOrder.courierName = srData.courier_name
+      }
+      await updatedOrder.save()
+    } catch (err) {
+      console.error('Shiprocket create order failed after payOrder:', err.message)
+    }
+  }
   res.json({ success: true, order: updatedOrder })
 })

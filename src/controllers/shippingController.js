@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
-import { createShiprocketOrder, trackOrder, getServiceability } from '../utils/shiprocketAPI.js'
+import { createShiprocketOrder, trackOrder, getServiceability, testShiprocketAuth } from '../utils/shiprocketAPI.js'
 
 // @desc    Create Shiprocket order
 // @route   POST /api/shipping/create/:orderId
@@ -35,5 +35,12 @@ export const trackShipment = asyncHandler(async (req, res) => {
 // @route   POST /api/shipping/serviceability
 export const checkServiceability = asyncHandler(async (req, res) => {
   const data = await getServiceability(req.body)
+  res.json({ success: true, data })
+})
+
+// @desc    Test Shiprocket auth/config
+// @route   GET /api/shipping/test-auth
+export const testAuth = asyncHandler(async (req, res) => {
+  const data = await testShiprocketAuth()
   res.json({ success: true, data })
 })

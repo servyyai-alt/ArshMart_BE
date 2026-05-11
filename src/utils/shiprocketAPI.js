@@ -1,21 +1,42 @@
 import axios from 'axios'
+import Settings from '../models/Settings.js'
+import User from '../models/User.js'
 
 const SHIPROCKET_BASE = 'https://apiv2.shiprocket.in/v1/external'
 
-let tokenCache = { token: null, expiresAt: 0 }
+let tokenCache = { token: null, expiresAt: 0, cacheKey: null }
+
+const getShiprocketConfig = async () => {
+  const doc = await Settings.findOne({ singleton: 'global' })
+    .select('integrations.shiprocket')
+    .lean()
+
+  const email = doc?.integrations?.shiprocket?.email || process.env.SHIPROCKET_EMAIL || ''
+  const password = doc?.integrations?.shiprocket?.password || process.env.SHIPROCKET_PASSWORD || ''
+  const pickupLocation = doc?.integrations?.shiprocket?.pickupLocation || process.env.SHIPROCKET_PICKUP_LOCATION || 'Primary'
+
+  return { email, password, pickupLocation }
+}
 
 const getToken = async () => {
-  if (tokenCache.token && Date.now() < tokenCache.expiresAt) {
-    return tokenCache.token
+  const { email, password } = await getShiprocketConfig()
+  const cacheKey = `${email}::${password ? 'set' : 'unset'}`
+
+  if (!email || !password) {
+    const err = new Error('Shiprocket credentials not configured')
+    err.statusCode = 500
+    throw err
   }
 
-  const res = await axios.post(`${SHIPROCKET_BASE}/auth/login`, {
-    email: process.env.SHIPROCKET_EMAIL,
-    password: process.env.SHIPROCKET_PASSWORD,
-  })
+  if (tokenCache.token && Date.now() < tokenCache.expiresAt) {
+    if (tokenCache.cacheKey === cacheKey) return tokenCache.token
+  }
+
+  const res = await axios.post(`${SHIPROCKET_BASE}/auth/login`, { email, password })
 
   tokenCache.token = res.data.token
   tokenCache.expiresAt = Date.now() + 9 * 24 * 60 * 60 * 1000 // 9 days
+  tokenCache.cacheKey = cacheKey
   return tokenCache.token
 }
 
@@ -31,10 +52,20 @@ export const createShiprocketOrder = async (order) => {
   const client = await shiprocketClient()
   const { shippingAddress: addr, orderItems } = order
 
+  const { pickupLocation } = await getShiprocketConfig()
+
+  let billingEmail = ''
+  if (order.user?.email) billingEmail = order.user.email
+  if (!billingEmail && order.user) {
+    const userDoc = await User.findById(order.user).select('email').lean()
+    billingEmail = userDoc?.email || ''
+  }
+  if (!billingEmail) billingEmail = process.env.ADMIN_EMAIL || 'support@sandhaikart.com'
+
   const payload = {
     order_id: order._id.toString(),
     order_date: new Date(order.createdAt).toISOString().split('T')[0],
-    pickup_location: 'Primary',
+    pickup_location: pickupLocation,
     billing_customer_name: addr.fullName,
     billing_last_name: '',
     billing_address: addr.addressLine1,
@@ -43,7 +74,7 @@ export const createShiprocketOrder = async (order) => {
     billing_pincode: addr.pincode,
     billing_state: addr.state,
     billing_country: 'India',
-    billing_email: '',
+    billing_email: billingEmail,
     billing_phone: addr.phone,
     shipping_is_billing: true,
     order_items: orderItems.map(item => ({
@@ -62,8 +93,16 @@ export const createShiprocketOrder = async (order) => {
     weight: 0.5,
   }
 
-  const res = await client.post('/orders/create/adhoc', payload)
-  return res.data
+  try {
+    const res = await client.post('/orders/create/adhoc', payload)
+    return res.data
+  } catch (err) {
+    const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message
+    const e = new Error(`Shiprocket create order failed: ${apiMessage}`)
+    e.statusCode = err.response?.status || 500
+    e.details = err.response?.data
+    throw e
+  }
 }
 
 export const trackOrder = async (awbCode) => {
@@ -89,4 +128,10 @@ export const cancelShiprocketOrder = async (ids) => {
   const client = await shiprocketClient()
   const res = await client.post('/orders/cancel', { ids })
   return res.data
+}
+
+export const testShiprocketAuth = async () => {
+  const { email, pickupLocation } = await getShiprocketConfig()
+  const token = await getToken()
+  return { email, pickupLocation, tokenPresent: Boolean(token) }
 }

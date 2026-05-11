@@ -81,12 +81,12 @@ export const adminUpdateOrder = asyncHandler(async (req, res) => {
 
   // If shipped and no Shiprocket order yet, create one
   if (status === 'shipped' && !order.shiprocketOrderId) {
-    try {
-      const srData = await createShiprocketOrder(order)
-      order.shiprocketOrderId = srData.order_id
-      if (srData.awb_code) order.trackingNumber = srData.awb_code
-    } catch (err) {
-      console.error('Shiprocket error:', err.message)
+    const srData = await createShiprocketOrder(order)
+    order.shiprocketOrderId = srData.order_id
+    order.shiprocketShipmentId = srData.shipment_id
+    if (srData.awb_code) {
+      order.trackingNumber = srData.awb_code
+      order.courierName = srData.courier_name
     }
   }
 
