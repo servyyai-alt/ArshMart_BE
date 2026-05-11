@@ -4,6 +4,7 @@ import Product from '../models/Product.js'
 import Category from '../models/Category.js'
 import Order from '../models/Order.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
+import GalleryImage from '../models/GalleryImage.js'
 
 // ─── Products ─────────────────────────────────────────────
 export const adminGetProducts = asyncHandler(async (req, res) => {
@@ -149,21 +150,51 @@ export const adminGetAnalytics = asyncHandler(async (req, res) => {
 })
 
 // ─── Gallery ──────────────────────────────────────────────
-// Simple in-memory/DB gallery store
-let galleryImages = []
-
 export const adminGetGallery = asyncHandler(async (req, res) => {
-  res.json({ success: true, images: galleryImages })
+  const images = await GalleryImage.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 })
+  res.json({ success: true, images })
 })
 
 export const adminAddGallery = asyncHandler(async (req, res) => {
   const { images } = req.body
-  galleryImages = [...galleryImages, ...images]
-  res.json({ success: true, images: galleryImages })
+  if (!Array.isArray(images) || images.length === 0) {
+    res.status(400)
+    throw new Error('Images array is required')
+  }
+
+  const docs = images
+    .filter(i => i?.public_id && i?.url)
+    .map((i, idx) => ({
+      public_id: i.public_id,
+      url: i.url,
+      caption: i.caption || '',
+      isActive: true,
+      // If not provided, append order after existing ones
+      sortOrder: Number.isFinite(Number(i.sortOrder)) ? Number(i.sortOrder) : (Date.now() + idx),
+      uploadedBy: req.user?._id,
+    }))
+
+  if (docs.length === 0) {
+    res.status(400)
+    throw new Error('No valid images provided')
+  }
+
+  await GalleryImage.bulkWrite(
+    docs.map((d) => ({
+      updateOne: {
+        filter: { public_id: d.public_id },
+        update: { $set: d, $setOnInsert: { createdAt: new Date() } },
+        upsert: true,
+      },
+    }))
+  )
+
+  const saved = await GalleryImage.find({ public_id: { $in: docs.map(d => d.public_id) } })
+  res.json({ success: true, images: saved })
 })
 
 export const adminDeleteGallery = asyncHandler(async (req, res) => {
   const { publicId } = req.params
-  galleryImages = galleryImages.filter(i => i.public_id !== publicId)
+  await GalleryImage.findOneAndUpdate({ public_id: publicId }, { $set: { isActive: false } }, { new: true })
   res.json({ success: true, message: 'Deleted' })
 })
