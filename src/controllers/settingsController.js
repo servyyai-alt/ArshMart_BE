@@ -25,6 +25,19 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
 
   if (payload.primaryColor !== undefined) update['theme.primaryColor'] = String(payload.primaryColor || '')
 
+  if (payload.marqueeTexts !== undefined) {
+    if (Array.isArray(payload.marqueeTexts)) {
+      update['marketing.marqueeTexts'] = payload.marqueeTexts.map(v => String(v || '').trim()).filter(Boolean)
+    } else {
+      const lines = String(payload.marqueeTexts || '')
+        .split('\n')
+        .map(v => v.trim())
+        .filter(Boolean)
+      update['marketing.marqueeTexts'] = lines
+    }
+  }
+  if (payload.couponCode !== undefined) update['marketing.couponCode'] = String(payload.couponCode || '').trim()
+
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
   if (payload.shiprocketPickupLocation !== undefined) update['integrations.shiprocket.pickupLocation'] = String(payload.shiprocketPickupLocation || '')
@@ -90,6 +103,7 @@ export const getPublicSettings = asyncHandler(async (req, res) => {
       general: doc.general,
       seo: doc.seo,
       theme: doc.theme,
+      marketing: doc.marketing,
     },
   })
 })

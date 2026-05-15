@@ -19,6 +19,11 @@ const settingsSchema = new mongoose.Schema(
       primaryColor: { type: String, trim: true, default: '#f97316' },
     },
 
+    marketing: {
+      marqueeTexts: { type: [String], default: [] }, // scrolling announcements on homepage
+      couponCode: { type: String, trim: true, default: '' },
+    },
+
     integrations: {
       razorpay: {
         keyId: { type: String, trim: true, default: '' },

@@ -22,6 +22,8 @@ const categorySchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true })
 
+categorySchema.index({ name: 1 })
+
 categorySchema.pre('save', function (next) {
   if (this.isModified('name')) {
     this.slug = slugify(this.name)

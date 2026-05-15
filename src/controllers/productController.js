@@ -1,5 +1,8 @@
 import asyncHandler from 'express-async-handler'
 import Product from '../models/Product.js'
+import Category from '../models/Category.js'
+
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -12,7 +15,17 @@ export const getProducts = asyncHandler(async (req, res) => {
   const query = { isActive: true }
 
   if (keyword) {
-    query.$text = { $search: keyword }
+    const safe = escapeRegex(String(keyword).trim())
+    if (safe) {
+      const regex = new RegExp(safe, 'i')
+      // Partial match across key fields (supports "yo"/"yog"/"yoga" etc.)
+      query.$or = [
+        { name: regex },
+        { category: regex },
+        { description: regex },
+        { tags: regex },
+      ]
+    }
   }
   if (category) query.category = category
   if (featured) query.isFeatured = true
@@ -39,6 +52,85 @@ export const getProducts = asyncHandler(async (req, res) => {
     totalPages: Math.ceil(totalProducts / limitNum),
     currentPage: pageNum,
   })
+})
+
+// @desc    Suggest products/categories for navbar search (partial match)
+// @route   GET /api/products/suggest?query=...
+export const suggestSearch = asyncHandler(async (req, res) => {
+  const { query } = req.query
+  const q = String(query || '').trim()
+  if (!q || q.length < 2) {
+    return res.json({ success: true, products: [], categories: [] })
+  }
+
+  const safe = escapeRegex(q)
+  const prefix = `^${safe}`
+
+  const [products, categoryDocs] = await Promise.all([
+    Product.aggregate([
+      {
+        $match: {
+          isActive: true,
+          $or: [
+            { name: { $regex: safe, $options: 'i' } },
+            { category: { $regex: safe, $options: 'i' } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          _score: {
+            $add: [
+              { $cond: [{ $regexMatch: { input: '$name', regex: prefix, options: 'i' } }, 5, 0] },
+              { $cond: [{ $regexMatch: { input: '$category', regex: prefix, options: 'i' } }, 3, 0] },
+              { $cond: [{ $regexMatch: { input: '$name', regex: safe, options: 'i' } }, 1, 0] },
+              { $cond: [{ $regexMatch: { input: '$category', regex: safe, options: 'i' } }, 1, 0] },
+            ],
+          },
+        },
+      },
+      { $sort: { _score: -1, createdAt: -1 } },
+      { $limit: 8 },
+      {
+        $project: {
+          _score: 0,
+          name: 1,
+          price: 1,
+          images: 1,
+          category: 1,
+          ratings: 1,
+          numReviews: 1,
+          stock: 1,
+          isActive: 1,
+        },
+      },
+    ]),
+    Category.aggregate([
+      { $match: { isActive: true, name: { $regex: safe, $options: 'i' } } },
+      {
+        $addFields: {
+          _score: {
+            $add: [
+              { $cond: [{ $regexMatch: { input: '$name', regex: prefix, options: 'i' } }, 5, 0] },
+              { $cond: [{ $regexMatch: { input: '$name', regex: safe, options: 'i' } }, 1, 0] },
+            ],
+          },
+        },
+      },
+      { $sort: { _score: -1, name: 1 } },
+      { $limit: 6 },
+      { $project: { _score: 0, name: 1 } },
+    ]),
+  ])
+
+  const categories = await Promise.all(
+    (categoryDocs || []).map(async (c) => {
+      const count = await Product.countDocuments({ isActive: true, category: c.name })
+      return { category: c.name, count }
+    })
+  )
+
+  res.json({ success: true, products, categories })
 })
 
 // @desc    Get featured products

@@ -59,6 +59,10 @@ const orderSchema = new mongoose.Schema({
   }],
   deliveredAt: Date,
   cancelReason: String,
+  notification: {
+    userEmailSentAt: Date,
+    adminEmailSentAt: Date,
+  },
 }, { timestamps: true })
 
 // Add to status history on status change

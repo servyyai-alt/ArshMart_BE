@@ -92,7 +92,9 @@ productSchema.methods.calcAverageRating = function () {
   }
 }
 
-productSchema.index({ name: 'text', description: 'text', tags: 'text' })
+// Text search should also match categories entered in the UI search box.
+productSchema.index({ name: 'text', description: 'text', tags: 'text', category: 'text' })
+productSchema.index({ name: 1 })
 productSchema.index({ category: 1 })
 productSchema.index({ price: 1 })
 productSchema.index({ ratings: -1 })

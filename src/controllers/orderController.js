@@ -2,6 +2,9 @@ import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
+import { cancelShiprocketOrder } from '../utils/shiprocketAPI.js'
+import User from '../models/User.js'
+import { sendOrderEmails } from '../utils/email.js'
 
 // @desc    Create order
 // @route   POST /api/orders
@@ -36,6 +39,22 @@ export const createOrder = asyncHandler(async (req, res) => {
     taxPrice,
     totalPrice,
   })
+
+  // COD orders: consider order placed immediately -> send emails best-effort.
+  if (paymentMethod === 'cod') {
+    try {
+      const user = await User.findById(req.user._id).select('name email phone').lean()
+      await sendOrderEmails({ order, user })
+      order.notification = {
+        ...(order.notification || {}),
+        userEmailSentAt: new Date(),
+        adminEmailSentAt: new Date(),
+      }
+      await order.save()
+    } catch (err) {
+      console.error('COD order email send failed:', err.message)
+    }
+  }
 
   res.status(201).json({ success: true, order })
 })
@@ -107,5 +126,71 @@ export const payOrder = asyncHandler(async (req, res) => {
       console.error('Shiprocket create order failed after payOrder:', err.message)
     }
   }
+
+  // Send emails best-effort if not sent
+  if (!updatedOrder.notification?.userEmailSentAt || !updatedOrder.notification?.adminEmailSentAt) {
+    try {
+      const user = await User.findById(updatedOrder.user).select('name email phone').lean()
+      await sendOrderEmails({ order: updatedOrder, user })
+      updatedOrder.notification = {
+        ...(updatedOrder.notification || {}),
+        userEmailSentAt: updatedOrder.notification?.userEmailSentAt || new Date(),
+        adminEmailSentAt: updatedOrder.notification?.adminEmailSentAt || new Date(),
+      }
+      await updatedOrder.save()
+    } catch (err) {
+      console.error('Order email send failed after payOrder:', err.message)
+    }
+  }
   res.json({ success: true, order: updatedOrder })
+})
+
+// @desc    Cancel my order
+// @route   PUT /api/orders/:id/cancel
+export const cancelOrder = asyncHandler(async (req, res) => {
+  const { reason } = req.body || {}
+  const cancelReason = String(reason || '').trim()
+  if (!cancelReason) {
+    res.status(400)
+    throw new Error('Cancellation reason is required')
+  }
+
+  const order = await Order.findById(req.params.id)
+  if (!order) {
+    res.status(404)
+    throw new Error('Order not found')
+  }
+
+  // Check ownership or admin
+  if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(403)
+    throw new Error('Not authorized to cancel this order')
+  }
+
+  if (order.orderStatus === 'cancelled') {
+    res.status(400)
+    throw new Error('Order is already cancelled')
+  }
+  if (order.orderStatus === 'delivered') {
+    res.status(400)
+    throw new Error('Delivered orders cannot be cancelled')
+  }
+  if (order.orderStatus === 'shipped') {
+    res.status(400)
+    throw new Error('Shipped orders cannot be cancelled')
+  }
+
+  // Best-effort Shiprocket cancellation (if an order id exists)
+  if (order.shiprocketOrderId) {
+    try {
+      await cancelShiprocketOrder([order.shiprocketOrderId])
+    } catch (err) {
+      console.error('Shiprocket cancel failed:', err.message)
+    }
+  }
+
+  order.orderStatus = 'cancelled'
+  order.cancelReason = cancelReason
+  const updated = await order.save()
+  res.json({ success: true, order: updated })
 })

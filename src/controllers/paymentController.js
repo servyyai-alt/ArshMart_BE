@@ -5,6 +5,8 @@ import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import Settings from '../models/Settings.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
+import User from '../models/User.js'
+import { sendOrderEmails } from '../utils/email.js'
 
 let razorpayCache = { keyId: null, keySecret: null, client: null, expiresAt: 0 }
 
@@ -138,6 +140,22 @@ export const verifyPayment = asyncHandler(async (req, res) => {
       shiprocketError = err.message
       // Keep payment successful even if shipping setup fails.
       console.error('Shiprocket create order failed after payment:', err.message)
+    }
+  }
+
+  // Send emails (best-effort; do not fail payment success if email fails)
+  if (!order.notification?.userEmailSentAt || !order.notification?.adminEmailSentAt) {
+    try {
+      const user = await User.findById(order.user).select('name email phone').lean()
+      await sendOrderEmails({ order, user })
+      order.notification = {
+        ...(order.notification || {}),
+        userEmailSentAt: order.notification?.userEmailSentAt || new Date(),
+        adminEmailSentAt: order.notification?.adminEmailSentAt || new Date(),
+      }
+      await order.save()
+    } catch (err) {
+      console.error('Order email send failed:', err.message)
     }
   }
 
