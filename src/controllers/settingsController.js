@@ -19,6 +19,8 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
   if (payload.siteName !== undefined) update['general.siteName'] = String(payload.siteName || '')
   if (payload.siteDescription !== undefined) update['general.siteDescription'] = String(payload.siteDescription || '')
   if (payload.freeShippingThreshold !== undefined) update['general.freeShippingThreshold'] = normalizeNumber(payload.freeShippingThreshold, 0)
+  if (payload.shippingCharge !== undefined) update['general.shippingCharge'] = normalizeNumber(payload.shippingCharge, 0)
+  if (payload.freeShippingEnabled !== undefined) update['general.freeShippingEnabled'] = Boolean(payload.freeShippingEnabled)
 
   if (payload.metaTitle !== undefined) update['seo.metaTitle'] = String(payload.metaTitle || '')
   if (payload.metaDescription !== undefined) update['seo.metaDescription'] = String(payload.metaDescription || '')

@@ -7,7 +7,9 @@ const settingsSchema = new mongoose.Schema(
     general: {
       siteName: { type: String, trim: true, default: 'Sandhaikart' },
       siteDescription: { type: String, trim: true, default: '' },
-      freeShippingThreshold: { type: Number, default: 0, min: 0 },
+      freeShippingThreshold: { type: Number, default: 499, min: 0 },
+      shippingCharge: { type: Number, default: 49, min: 0 },
+      freeShippingEnabled: { type: Boolean, default: true },
     },
 
     seo: {

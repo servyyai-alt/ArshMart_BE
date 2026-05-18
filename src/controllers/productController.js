@@ -9,7 +9,7 @@ const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g,
 export const getProducts = asyncHandler(async (req, res) => {
   const {
     keyword, category, minPrice, maxPrice, rating,
-    sort = '-createdAt', page = 1, limit = 12, featured,
+    sort = '-createdAt', page = 1, limit = 20, featured,
   } = req.query
 
   const query = { isActive: true }

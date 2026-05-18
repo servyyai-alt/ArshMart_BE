@@ -62,6 +62,8 @@ const orderSchema = new mongoose.Schema({
   notification: {
     userEmailSentAt: Date,
     adminEmailSentAt: Date,
+    cancelUserEmailSentAt: Date,
+    cancelAdminEmailSentAt: Date,
   },
 }, { timestamps: true })
 

@@ -205,3 +205,107 @@ export const sendOrderEmails = async ({ order, user }) => {
   return results
 }
 
+const renderCancelHtml = ({ appName, order, user, reason, isAdmin }) => {
+  const orderIdShort = order._id?.toString()?.slice(-8)?.toUpperCase()
+  const placedOn = order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN') : ''
+  const cancelledOn = new Date().toLocaleString('en-IN')
+  const addr = order.shippingAddress || {}
+
+  const customerBlock = isAdmin ? `
+    <h3 style="margin:24px 0 8px;color:#0f172a;">Customer</h3>
+    <div style="color:#334155;font-size:14px;line-height:1.5">
+      <div><strong>Name:</strong> ${escapeHtml(user?.name || '')}</div>
+      <div><strong>Email:</strong> ${escapeHtml(user?.email || '')}</div>
+      <div><strong>Phone:</strong> ${escapeHtml(user?.phone || '')}</div>
+    </div>
+  ` : ''
+
+  return `
+  <div style="background:#f8fafc;padding:24px 0;">
+    <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+      <div style="padding:20px 24px;background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;">
+        <div style="font-size:18px;font-weight:800;letter-spacing:.2px;">${escapeHtml(appName)}</div>
+        <div style="margin-top:8px;font-size:14px;opacity:.95;">
+          ${isAdmin ? 'Order cancelled' : 'Your order has been cancelled'}
+        </div>
+      </div>
+
+      <div style="padding:22px 24px;">
+        <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div style="color:#64748b;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">Order</div>
+            <div style="font-weight:800;color:#0f172a;font-size:18px;margin-top:4px;">#${escapeHtml(orderIdShort)}</div>
+            <div style="color:#64748b;font-size:12px;margin-top:6px;">Placed: ${escapeHtml(placedOn)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:#64748b;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">Cancelled</div>
+            <div style="font-weight:700;color:#0f172a;font-size:14px;margin-top:4px;">${escapeHtml(cancelledOn)}</div>
+            <div style="color:#64748b;font-size:12px;margin-top:6px;">Status: cancelled</div>
+          </div>
+        </div>
+
+        ${customerBlock}
+
+        <h3 style="margin:24px 0 8px;color:#0f172a;">Cancellation reason</h3>
+        <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:12px;color:#0f172a;font-size:14px;">
+          ${escapeHtml(reason || '')}
+        </div>
+
+        <h3 style="margin:24px 0 8px;color:#0f172a;">Shipping address</h3>
+        <div style="color:#334155;font-size:14px;line-height:1.5">
+          <div style="font-weight:700">${escapeHtml(addr.fullName || '')}</div>
+          <div>${escapeHtml(addr.addressLine1 || '')}${addr.addressLine2 ? `, ${escapeHtml(addr.addressLine2)}` : ''}</div>
+          <div>${escapeHtml(addr.city || '')}, ${escapeHtml(addr.state || '')} ${escapeHtml(addr.pincode || '')}</div>
+          <div>${escapeHtml(addr.country || 'India')}</div>
+        </div>
+
+        <div style="margin-top:18px;color:#64748b;font-size:12px;line-height:1.5;">
+          If you need help, reply to this email or contact support.
+        </div>
+      </div>
+    </div>
+    <div style="max-width:720px;margin:10px auto 0;color:#94a3b8;font-size:11px;text-align:center;">
+      This is an automated message from ${escapeHtml(appName)}.
+    </div>
+  </div>
+  `
+}
+
+export const sendOrderCancelledEmails = async ({ order, user, reason }) => {
+  const cfg = getMailConfig()
+  if (!isMailConfigured(cfg)) return { skipped: true }
+  const transporter = createTransporter(cfg)
+
+  const orderIdShort = order._id?.toString()?.slice(-8)?.toUpperCase()
+  const subjectUser = `${cfg.appName}: Order cancelled (#${orderIdShort})`
+  const subjectAdmin = `${cfg.appName}: Order cancelled (#${orderIdShort})`
+
+  const htmlUser = renderCancelHtml({ appName: cfg.appName, order, user, reason, isAdmin: false })
+  const htmlAdmin = renderCancelHtml({ appName: cfg.appName, order, user, reason, isAdmin: true })
+  const textUser = `${cfg.appName}\nOrder #${orderIdShort} cancelled.\nReason: ${reason || ''}`
+  const textAdmin = `${cfg.appName}\nOrder #${orderIdShort} cancelled.\nCustomer: ${user?.name || ''} (${user?.email || ''})\nReason: ${reason || ''}`
+
+  const results = { user: null, admin: null }
+
+  if (user?.email) {
+    results.user = await transporter.sendMail({
+      from: cfg.from,
+      to: user.email,
+      subject: subjectUser,
+      text: textUser,
+      html: htmlUser,
+    })
+  }
+
+  if (cfg.adminEmail) {
+    results.admin = await transporter.sendMail({
+      from: cfg.from,
+      to: cfg.adminEmail,
+      subject: subjectAdmin,
+      text: textAdmin,
+      html: htmlAdmin,
+    })
+  }
+
+  return results
+}

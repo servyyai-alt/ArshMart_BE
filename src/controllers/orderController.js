@@ -5,6 +5,7 @@ import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 import { cancelShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
+import { sendOrderCancelledEmails } from '../utils/email.js'
 
 // @desc    Create order
 // @route   POST /api/orders
@@ -192,5 +193,22 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   order.orderStatus = 'cancelled'
   order.cancelReason = cancelReason
   const updated = await order.save()
+
+  // Send cancellation emails best-effort (user + admin)
+  if (!updated.notification?.cancelUserEmailSentAt || !updated.notification?.cancelAdminEmailSentAt) {
+    try {
+      const user = await User.findById(updated.user).select('name email phone').lean()
+      await sendOrderCancelledEmails({ order: updated, user, reason: cancelReason })
+      updated.notification = {
+        ...(updated.notification || {}),
+        cancelUserEmailSentAt: updated.notification?.cancelUserEmailSentAt || new Date(),
+        cancelAdminEmailSentAt: updated.notification?.cancelAdminEmailSentAt || new Date(),
+      }
+      await updated.save()
+    } catch (err) {
+      console.error('Order cancellation email send failed:', err.message)
+    }
+  }
+
   res.json({ success: true, order: updated })
 })
