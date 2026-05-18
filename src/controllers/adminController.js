@@ -195,6 +195,14 @@ export const adminAddGallery = asyncHandler(async (req, res) => {
 
 export const adminDeleteGallery = asyncHandler(async (req, res) => {
   const { publicId } = req.params
-  await GalleryImage.findOneAndUpdate({ public_id: publicId }, { $set: { isActive: false } }, { new: true })
+  const updated = await GalleryImage.findOneAndUpdate(
+    { public_id: publicId },
+    { $set: { isActive: false } },
+    { new: true }
+  )
+  if (!updated) {
+    res.status(404)
+    throw new Error('Gallery image not found')
+  }
   res.json({ success: true, message: 'Deleted' })
 })
