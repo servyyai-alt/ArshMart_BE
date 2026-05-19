@@ -43,7 +43,18 @@ const orderSchema = new mongoose.Schema({
   paidAt: Date,
   orderStatus: {
     type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: [
+      'pending',
+      'processing',
+      'shipped',
+      'delivered',
+      'cancelled',
+      'return_requested',
+      'returned',
+      'refund_pending',
+      'refund_processed',
+      'refund_failed',
+    ],
     default: 'pending',
   },
   // Shiprocket fields
@@ -59,11 +70,27 @@ const orderSchema = new mongoose.Schema({
   }],
   deliveredAt: Date,
   cancelReason: String,
+  // Return/refund summary (mirrors ReturnRequest for quick reads)
+  return: {
+    hasReturnRequest: { type: Boolean, default: false, index: true },
+    returnRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ReturnRequest' },
+    returnStatus: String,
+    returnInitiatedAt: Date,
+    returnedAt: Date,
+  },
+  refund: {
+    refundId: String,
+    refundStatus: String,
+    refundAmount: Number, // in paise
+    refundProcessedAt: Date,
+  },
   notification: {
     userEmailSentAt: Date,
     adminEmailSentAt: Date,
     cancelUserEmailSentAt: Date,
     cancelAdminEmailSentAt: Date,
+    returnUserEmailSentAt: Date,
+    returnAdminEmailSentAt: Date,
   },
 }, { timestamps: true })
 

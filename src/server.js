@@ -11,6 +11,7 @@ import connectDB from './config/db.js'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
 
 // Routes
+import webhookRoutes from './routes/webhookRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import productRoutes from './routes/productRoutes.js'
 import categoryRoutes from './routes/categoryRoutes.js'
@@ -22,6 +23,7 @@ import adminRoutes from './routes/adminRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
 import galleryRoutes from './routes/galleryRoutes.js'
 import userRoutes from './routes/userRoutes.js'
+import returnRoutes from './routes/returnRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -62,6 +64,10 @@ const apiLimiter = rateLimit({
   message: { success: false, message: 'Too many requests.' },
 })
 
+// ─── Webhooks (must use raw body) ─────────────────────────
+app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }))
+app.use('/api/webhooks', webhookRoutes)
+
 // ─── Parsers ──────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
@@ -83,6 +89,7 @@ app.use('/api/admin', apiLimiter, adminRoutes)
 app.use('/api/settings', apiLimiter, settingsRoutes)
 app.use('/api/gallery', apiLimiter, galleryRoutes)
 app.use('/api/users', apiLimiter, userRoutes)
+app.use('/api/returns', apiLimiter, returnRoutes)
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {

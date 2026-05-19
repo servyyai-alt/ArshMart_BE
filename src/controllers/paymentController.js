@@ -1,38 +1,11 @@
 import asyncHandler from 'express-async-handler'
-import Razorpay from 'razorpay'
 import crypto from 'crypto'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
-import Settings from '../models/Settings.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
-
-let razorpayCache = { keyId: null, keySecret: null, client: null, expiresAt: 0 }
-
-const getRazorpayKeys = async () => {
-  if (razorpayCache.client && Date.now() < razorpayCache.expiresAt) {
-    return { keyId: razorpayCache.keyId, keySecret: razorpayCache.keySecret, client: razorpayCache.client }
-  }
-
-  const doc = await Settings.findOne({ singleton: 'global' }).select('integrations.razorpay').lean()
-  const keyId = doc?.integrations?.razorpay?.keyId || process.env.RAZORPAY_KEY_ID
-  const keySecret = doc?.integrations?.razorpay?.keySecret || process.env.RAZORPAY_KEY_SECRET
-
-  if (!keyId || !keySecret) {
-    return { keyId: keyId || null, keySecret: keySecret || null, client: null }
-  }
-
-  const client = new Razorpay({ key_id: keyId, key_secret: keySecret })
-  razorpayCache = {
-    keyId,
-    keySecret,
-    client,
-    expiresAt: Date.now() + 60 * 1000, // 60s cache to reduce DB hits
-  }
-
-  return { keyId, keySecret, client }
-}
+import { getRazorpayKeys } from '../utils/razorpayClient.js'
 
 // @desc    Create Razorpay order
 // @route   POST /api/payment/create-order
@@ -165,7 +138,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 // @desc    Get Razorpay public key (key_id)
 // @route   GET /api/payment/key
 export const getRazorpayPublicKey = asyncHandler(async (req, res) => {
-  const doc = await Settings.findOne({ singleton: 'global' }).select('integrations.razorpay.keyId').lean()
-  const keyId = doc?.integrations?.razorpay?.keyId || process.env.RAZORPAY_KEY_ID || ''
+  const { keyId } = await getRazorpayKeys()
   res.json({ success: true, keyId })
 })
