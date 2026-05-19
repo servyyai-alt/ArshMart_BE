@@ -5,6 +5,7 @@ import Category from '../models/Category.js'
 import Order from '../models/Order.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 import GalleryImage from '../models/GalleryImage.js'
+import cloudinary from '../config/cloudinary.js'
 
 // ─── Products ─────────────────────────────────────────────
 export const adminGetProducts = asyncHandler(async (req, res) => {
@@ -33,9 +34,26 @@ export const adminUpdateProduct = asyncHandler(async (req, res) => {
 })
 
 export const adminDeleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true })
+  const product = await Product.findById(req.params.id)
   if (!product) { res.status(404); throw new Error('Product not found') }
-  res.json({ success: true, message: 'Product deleted' })
+
+  const imagePublicIds = (product.images || []).map(i => i?.public_id).filter(Boolean)
+  const videoPublicIds = (product.videos || []).map(v => v?.public_id).filter(Boolean)
+
+  // Best-effort Cloudinary cleanup (do not block DB delete).
+  if (imagePublicIds.length) {
+    await Promise.allSettled(imagePublicIds.map((publicId) =>
+      cloudinary.uploader.destroy(publicId, { resource_type: 'image' })
+    ))
+  }
+  if (videoPublicIds.length) {
+    await Promise.allSettled(videoPublicIds.map((publicId) =>
+      cloudinary.uploader.destroy(publicId, { resource_type: 'video' })
+    ))
+  }
+
+  await product.deleteOne()
+  res.json({ success: true, message: 'Product permanently deleted' })
 })
 
 // ─── Categories ───────────────────────────────────────────
