@@ -26,6 +26,17 @@ const settingsSchema = new mongoose.Schema(
       couponCode: { type: String, trim: true, default: '' },
     },
 
+    homepage: {
+      heroVideo: {
+        url: { type: String, trim: true, default: '' },
+        publicId: { type: String, trim: true, default: '' },
+      },
+      heroImage: {
+        url: { type: String, trim: true, default: '' },
+        publicId: { type: String, trim: true, default: '' },
+      },
+    },
+
     integrations: {
       razorpay: {
         keyId: { type: String, trim: true, default: '' },

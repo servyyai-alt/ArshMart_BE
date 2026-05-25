@@ -40,6 +40,11 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
   }
   if (payload.couponCode !== undefined) update['marketing.couponCode'] = String(payload.couponCode || '').trim()
 
+  if (payload.heroVideoUrl !== undefined) update['homepage.heroVideo.url'] = String(payload.heroVideoUrl || '').trim()
+  if (payload.heroVideoPublicId !== undefined) update['homepage.heroVideo.publicId'] = String(payload.heroVideoPublicId || '').trim()
+  if (payload.heroImageUrl !== undefined) update['homepage.heroImage.url'] = String(payload.heroImageUrl || '').trim()
+  if (payload.heroImagePublicId !== undefined) update['homepage.heroImage.publicId'] = String(payload.heroImagePublicId || '').trim()
+
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
   if (payload.shiprocketPickupLocation !== undefined) update['integrations.shiprocket.pickupLocation'] = String(payload.shiprocketPickupLocation || '')
@@ -106,6 +111,7 @@ export const getPublicSettings = asyncHandler(async (req, res) => {
       seo: doc.seo,
       theme: doc.theme,
       marketing: doc.marketing,
+      homepage: doc.homepage,
     },
   })
 })

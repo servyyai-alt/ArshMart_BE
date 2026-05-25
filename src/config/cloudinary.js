@@ -8,18 +8,30 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-export const createStorage = (folder = 'sandhaikart', resourceType = 'image') => {
+const sanitizeFolder = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9/_-]/g, '')
+    .replace(/\/+/g, '/')
+    .replace(/^\/|\/$/g, '')
+
+export const createStorage = (defaultFolder = 'sandhaikart', resourceType = 'image') => {
   return new CloudinaryStorage({
     cloudinary,
-    params: {
-      folder: `sandhaikart/${folder}`,
-      resource_type: resourceType,
-      allowed_formats: resourceType === 'video'
-        ? ['mp4', 'webm', 'mov']
-        : ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-      transformation: resourceType === 'image'
-        ? [{ quality: 'auto', fetch_format: 'auto' }]
-        : undefined,
+    params: (req) => {
+      const requested = sanitizeFolder(req?.body?.folder)
+      const folder = requested || sanitizeFolder(defaultFolder) || 'products'
+      return {
+        folder: `sandhaikart/${folder}`,
+        resource_type: resourceType,
+        allowed_formats: resourceType === 'video'
+          ? ['mp4', 'webm', 'mov']
+          : ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+        transformation: resourceType === 'image'
+          ? [{ quality: 'auto', fetch_format: 'auto' }]
+          : undefined,
+      }
     },
   })
 }
