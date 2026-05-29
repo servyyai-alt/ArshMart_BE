@@ -44,6 +44,27 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
   if (payload.heroVideoPublicId !== undefined) update['homepage.heroVideo.publicId'] = String(payload.heroVideoPublicId || '').trim()
   if (payload.heroImageUrl !== undefined) update['homepage.heroImage.url'] = String(payload.heroImageUrl || '').trim()
   if (payload.heroImagePublicId !== undefined) update['homepage.heroImage.publicId'] = String(payload.heroImagePublicId || '').trim()
+  if (payload.heroImages !== undefined) {
+    const arr = Array.isArray(payload.heroImages) ? payload.heroImages : []
+    update['homepage.heroImages'] = arr
+      .map((x) => ({
+        url: String(x?.url || '').trim(),
+        publicId: String(x?.publicId || x?.public_id || '').trim(),
+      }))
+      .filter((x) => Boolean(x.url))
+  }
+  if (payload.heroCards !== undefined) {
+    const arr = Array.isArray(payload.heroCards) ? payload.heroCards : []
+    update['homepage.heroCards'] = arr
+      .map((x) => ({
+        kind: x?.kind === 'video' ? 'video' : 'image',
+        url: String(x?.url || '').trim(),
+        publicId: String(x?.publicId || x?.public_id || '').trim(),
+        title: String(x?.title || '').trim(),
+      }))
+      .filter((x) => Boolean(x.url))
+      .slice(0, 14)
+  }
 
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')

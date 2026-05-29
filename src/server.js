@@ -24,6 +24,7 @@ import settingsRoutes from './routes/settingsRoutes.js'
 import galleryRoutes from './routes/galleryRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import returnRoutes from './routes/returnRoutes.js'
+import couponRoutes from './routes/couponRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -90,6 +91,7 @@ app.use('/api/settings', apiLimiter, settingsRoutes)
 app.use('/api/gallery', apiLimiter, galleryRoutes)
 app.use('/api/users', apiLimiter, userRoutes)
 app.use('/api/returns', apiLimiter, returnRoutes)
+app.use('/api/coupons', apiLimiter, couponRoutes)
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {

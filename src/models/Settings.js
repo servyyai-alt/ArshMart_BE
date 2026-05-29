@@ -35,6 +35,26 @@ const settingsSchema = new mongoose.Schema(
         url: { type: String, trim: true, default: '' },
         publicId: { type: String, trim: true, default: '' },
       },
+      heroImages: {
+        type: [
+          {
+            url: { type: String, trim: true, default: '' },
+            publicId: { type: String, trim: true, default: '' },
+          },
+        ],
+        default: [],
+      },
+      heroCards: {
+        type: [
+          {
+            kind: { type: String, enum: ['image', 'video'], default: 'image' },
+            url: { type: String, trim: true, default: '' },
+            publicId: { type: String, trim: true, default: '' },
+            title: { type: String, trim: true, default: '' },
+          },
+        ],
+        default: [],
+      },
     },
 
     integrations: {

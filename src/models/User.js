@@ -47,6 +47,7 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+  usedCoupons: { type: [String], default: [] },
 }, { timestamps: true })
 
 // Hash password before saving

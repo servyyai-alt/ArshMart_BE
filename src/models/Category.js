@@ -19,6 +19,11 @@ const categorySchema = new mongoose.Schema({
   description: String,
   image: String,
   imagePublicId: String,
+  media: {
+    kind: { type: String, enum: ['image', 'video'], default: 'image' },
+    url: { type: String, default: '' },
+    publicId: { type: String, default: '' },
+  },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true })
 
