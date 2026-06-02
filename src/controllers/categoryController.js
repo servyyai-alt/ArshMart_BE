@@ -11,7 +11,12 @@ export const getCategories = asyncHandler(async (req, res) => {
   const categoriesWithCount = await Promise.all(
     categories.map(async (cat) => {
       const count = await Product.countDocuments({ category: cat.name, isActive: true })
-      return { ...cat.toObject(), productCount: count }
+      const obj = cat.toObject()
+      // Back-compat: if legacy image exists but media is empty, expose it.
+      if ((!obj.media?.url) && obj.image) {
+        obj.media = { kind: 'image', url: obj.image, publicId: obj.imagePublicId || '' }
+      }
+      return { ...obj, productCount: count }
     })
   )
 

@@ -6,6 +6,17 @@ const SHIPROCKET_BASE = 'https://apiv2.shiprocket.in/v1/external'
 
 let tokenCache = { token: null, expiresAt: 0, cacheKey: null }
 
+const normalizeIndianPhone10 = (value) => {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (!digits) return ''
+  // Common cases: "+91XXXXXXXXXX", "91XXXXXXXXXX", "0XXXXXXXXXX", "XXXXXXXXXX"
+  if (digits.length === 10) return digits
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1)
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2)
+  if (digits.length > 10) return digits.slice(-10)
+  return digits // will fail validation later
+}
+
 const getShiprocketConfig = async () => {
   const doc = await Settings.findOne({ singleton: 'global' })
     .select('integrations.shiprocket')
@@ -128,6 +139,105 @@ export const cancelShiprocketOrder = async (ids) => {
   const client = await shiprocketClient()
   const res = await client.post('/orders/cancel', { ids })
   return res.data
+}
+
+const getReturnWarehouse = () => {
+  const name = process.env.RETURN_WAREHOUSE_NAME || process.env.WAREHOUSE_NAME || ''
+  const phone = process.env.RETURN_WAREHOUSE_PHONE || process.env.WAREHOUSE_PHONE || ''
+  const addressLine1 = process.env.RETURN_WAREHOUSE_ADDRESS1 || ''
+  const addressLine2 = process.env.RETURN_WAREHOUSE_ADDRESS2 || ''
+  const city = process.env.RETURN_WAREHOUSE_CITY || ''
+  const state = process.env.RETURN_WAREHOUSE_STATE || ''
+  const pincode = process.env.RETURN_WAREHOUSE_PINCODE || ''
+  const country = process.env.RETURN_WAREHOUSE_COUNTRY || 'India'
+
+  return { name, phone, addressLine1, addressLine2, city, state, pincode, country }
+}
+
+export const getReturnServiceability = async ({ pickupPincode, deliveryPincode, weight }) => {
+  return getServiceability({ pickupPincode, deliveryPincode, weight })
+}
+
+export const createShiprocketReturnOrder = async ({ order, returnRequest, items }) => {
+  const client = await shiprocketClient()
+
+  const addr = order.shippingAddress || {}
+  const warehouse = getReturnWarehouse()
+  const missing = []
+  if (!warehouse.pincode) missing.push('RETURN_WAREHOUSE_PINCODE')
+  if (!warehouse.addressLine1) missing.push('RETURN_WAREHOUSE_ADDRESS1')
+  if (!warehouse.city) missing.push('RETURN_WAREHOUSE_CITY')
+  if (!warehouse.state) missing.push('RETURN_WAREHOUSE_STATE')
+  if (!warehouse.phone) missing.push('RETURN_WAREHOUSE_PHONE')
+  if (missing.length) {
+    const e = new Error(`Return warehouse address is not configured. Missing: ${missing.join(', ')}`)
+    e.statusCode = 500
+    throw e
+  }
+
+  const pickupPhone = normalizeIndianPhone10(addr.phone)
+  if (!pickupPhone || pickupPhone.length !== 10) {
+    const e = new Error('Customer pickup phone must be 10 digits')
+    e.statusCode = 400
+    throw e
+  }
+
+  const warehousePhone = normalizeIndianPhone10(warehouse.phone)
+  if (!warehousePhone || warehousePhone.length !== 10) {
+    const e = new Error('Return warehouse phone must be 10 digits (RETURN_WAREHOUSE_PHONE)')
+    e.statusCode = 500
+    throw e
+  }
+
+  const payload = {
+    order_id: order._id.toString(),
+    order_date: new Date().toISOString().split('T')[0],
+    pickup_customer_name: addr.fullName,
+    pickup_last_name: '',
+    pickup_address: addr.addressLine1,
+    pickup_address_2: addr.addressLine2 || '',
+    pickup_city: addr.city,
+    pickup_state: addr.state,
+    pickup_country: addr.country || 'India',
+    pickup_pincode: addr.pincode,
+    pickup_email: order.user?.email || process.env.ADMIN_EMAIL || 'support@sandhaikart.com',
+    pickup_phone: pickupPhone,
+    shipping_customer_name: warehouse.name || 'Sandhaikart Warehouse',
+    shipping_last_name: '',
+    shipping_address: warehouse.addressLine1,
+    shipping_address_2: warehouse.addressLine2 || '',
+    shipping_city: warehouse.city,
+    shipping_state: warehouse.state,
+    shipping_country: warehouse.country || 'India',
+    shipping_pincode: warehouse.pincode,
+    shipping_phone: warehousePhone,
+    order_items: (items || []).map((it) => ({
+      name: it.name,
+      sku: it.product?.toString(),
+      units: it.quantity,
+      selling_price: Number(it.price || 0),
+      discount: 0,
+      tax: '',
+    })),
+    payment_method: 'Prepaid',
+    sub_total: (items || []).reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0),
+    length: 10,
+    breadth: 10,
+    height: 10,
+    weight: 0.5,
+    return_reason: returnRequest?.reason || '',
+  }
+
+  try {
+    const res = await client.post('/orders/create/return', payload)
+    return res.data
+  } catch (err) {
+    const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message
+    const e = new Error(`Shiprocket create return failed: ${apiMessage}`)
+    e.statusCode = err.response?.status || 500
+    e.details = err.response?.data
+    throw e
+  }
 }
 
 export const testShiprocketAuth = async () => {

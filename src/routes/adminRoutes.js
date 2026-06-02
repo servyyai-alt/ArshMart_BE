@@ -7,6 +7,7 @@ import {
   adminGetAnalytics,
   adminGetGallery, adminAddGallery, adminDeleteGallery,
 } from '../controllers/adminController.js'
+import { adminListReturns, adminUpdateReturnStatus, adminRefundReturn } from '../controllers/returnController.js'
 import { adminGetSettings, adminUpdateSettings } from '../controllers/settingsController.js'
 import { protect, adminOnly } from '../middleware/authMiddleware.js'
 
@@ -37,6 +38,11 @@ router.get('/analytics', adminGetAnalytics)
 // Gallery
 router.route('/gallery').get(adminGetGallery).post(adminAddGallery)
 router.delete('/gallery/:publicId', adminDeleteGallery)
+
+// Returns
+router.get('/returns', adminListReturns)
+router.put('/returns/:id/status', adminUpdateReturnStatus)
+router.post('/returns/:id/refund', adminRefundReturn)
 
 // Settings
 router.route('/settings').get(adminGetSettings).put(adminUpdateSettings)

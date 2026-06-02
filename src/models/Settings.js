@@ -26,6 +26,55 @@ const settingsSchema = new mongoose.Schema(
       couponCode: { type: String, trim: true, default: '' },
     },
 
+    homepage: {
+      heroVideo: {
+        url: { type: String, trim: true, default: '' },
+        publicId: { type: String, trim: true, default: '' },
+      },
+      heroImage: {
+        url: { type: String, trim: true, default: '' },
+        publicId: { type: String, trim: true, default: '' },
+      },
+      heroImages: {
+        type: [
+          {
+            url: { type: String, trim: true, default: '' },
+            publicId: { type: String, trim: true, default: '' },
+          },
+        ],
+        default: [],
+      },
+      heroCards: {
+        type: [
+          {
+            kind: { type: String, enum: ['image', 'video'], default: 'image' },
+            url: { type: String, trim: true, default: '' },
+            publicId: { type: String, trim: true, default: '' },
+            title: { type: String, trim: true, default: '' },
+          },
+        ],
+        default: [],
+      },
+      latestArrivals: {
+        title: { type: String, trim: true, default: 'Latest Arrivals' },
+        description: { type: String, trim: true, default: 'Explore our newest collection' },
+      },
+      latestArrivalBanners: {
+        type: [
+          {
+            title: { type: String, trim: true, default: '' },
+            description: { type: String, trim: true, default: '' },
+            image: {
+              url: { type: String, trim: true, default: '' },
+              publicId: { type: String, trim: true, default: '' },
+            },
+            to: { type: String, trim: true, default: '/products' },
+          },
+        ],
+        default: [],
+      },
+    },
+
     integrations: {
       razorpay: {
         keyId: { type: String, trim: true, default: '' },

@@ -6,11 +6,14 @@ import { cancelShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { sendOrderCancelledEmails } from '../utils/email.js'
+import Settings from '../models/Settings.js'
+
+const normalizeCode = (code) => String(code || '').trim().toUpperCase()
 
 // @desc    Create order
 // @route   POST /api/orders
 export const createOrder = asyncHandler(async (req, res) => {
-  const { orderItems, shippingAddress, paymentMethod, itemsPrice, shippingPrice, taxPrice, totalPrice } = req.body
+  const { orderItems, shippingAddress, paymentMethod, itemsPrice, shippingPrice, taxPrice, couponCode } = req.body
 
   if (!orderItems?.length) {
     res.status(400)
@@ -30,16 +33,59 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
+  const safeItemsPrice = Number(itemsPrice) || 0
+  const safeShippingPrice = Number(shippingPrice) || 0
+  const safeTaxPrice = Number(taxPrice) || 0
+  const baseTotal = Math.max(0, safeItemsPrice + safeShippingPrice + safeTaxPrice)
+
+  let coupon = undefined
+  let computedTotalPrice = baseTotal
+
+  const normalizedCoupon = normalizeCode(couponCode)
+  if (normalizedCoupon) {
+    const settings = await Settings.findOne({ singleton: 'global' }).select('marketing.couponCode').lean()
+    const active = normalizeCode(settings?.marketing?.couponCode)
+    if (!active) {
+      res.status(400)
+      throw new Error('No active coupon configured')
+    }
+    if (normalizedCoupon !== active) {
+      res.status(400)
+      throw new Error('Invalid coupon code')
+    }
+
+    const user = await User.findById(req.user._id).select('usedCoupons').lean()
+    const used = Array.isArray(user?.usedCoupons) ? user.usedCoupons.map(normalizeCode) : []
+    if (used.includes(normalizedCoupon)) {
+      res.status(400)
+      throw new Error('Coupon already used')
+    }
+
+    const percent = 10
+    const discountAmount = Math.round((baseTotal * percent) / 100)
+    computedTotalPrice = Math.max(0, baseTotal - discountAmount)
+    coupon = { code: normalizedCoupon, percent, discountAmount }
+  }
+
   const order = await Order.create({
     user: req.user._id,
     orderItems,
     shippingAddress,
     paymentMethod,
-    itemsPrice,
-    shippingPrice,
-    taxPrice,
-    totalPrice,
+    itemsPrice: safeItemsPrice,
+    shippingPrice: safeShippingPrice,
+    taxPrice: safeTaxPrice,
+    totalPrice: computedTotalPrice,
+    coupon,
   })
+
+  if (coupon?.code) {
+    try {
+      await User.findByIdAndUpdate(req.user._id, { $addToSet: { usedCoupons: coupon.code } })
+    } catch (err) {
+      console.error('Failed to mark coupon as used:', err.message)
+    }
+  }
 
   // COD orders: consider order placed immediately -> send emails best-effort.
   if (paymentMethod === 'cod') {
