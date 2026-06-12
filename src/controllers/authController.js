@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler'
 import User from '../models/User.js'
+import { sendMail } from '../utils/sendMail.js'
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -93,6 +94,107 @@ export const changePassword = asyncHandler(async (req, res) => {
   await user.save()
 
   res.json({ success: true, message: 'Password changed successfully' })
+})
+
+// @desc    Send OTP for password reset
+// @route   POST /api/auth/forgot-password
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body
+
+  if (!email) {
+    res.status(400)
+    throw new Error('Please provide your email')
+  }
+
+  const user = await User.findOne({ email })
+  if (!user) {
+    res.status(404)
+    throw new Error('No account found with that email')
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000))
+  user.resetPasswordOtp = otp
+  user.resetPasswordOtpExpire = new Date(Date.now() + 10 * 60 * 1000)
+  await user.save({ validateBeforeSave: false })
+
+  await sendMail({
+    to: user.email,
+    subject: 'Your password reset OTP',
+    text: `Your OTP for password reset is ${otp}. It expires in 10 minutes.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+        <h2 style="margin:0 0 12px;">Password reset OTP</h2>
+        <p>Your one-time password is:</p>
+        <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0;">${otp}</div>
+        <p>This OTP expires in 10 minutes.</p>
+      </div>
+    `,
+  })
+
+  res.json({ success: true, message: 'OTP sent to your email' })
+})
+
+// @desc    Verify OTP and reset password
+// @route   POST /api/auth/reset-password
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = req.body
+
+  if (!email || !otp || !newPassword) {
+    res.status(400)
+    throw new Error('Please provide email, OTP, and new password')
+  }
+
+  const user = await User.findOne({ email }).select('+password')
+  if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
+    res.status(400)
+    throw new Error('Invalid or expired OTP')
+  }
+
+  if (user.resetPasswordOtp !== String(otp)) {
+    res.status(400)
+    throw new Error('Invalid OTP')
+  }
+
+  if (user.resetPasswordOtpExpire < new Date()) {
+    res.status(400)
+    throw new Error('OTP has expired')
+  }
+
+  user.password = newPassword
+  user.resetPasswordOtp = undefined
+  user.resetPasswordOtpExpire = undefined
+  await user.save()
+
+  res.json({ success: true, message: 'Password updated successfully' })
+})
+
+// @desc    Verify OTP only
+// @route   POST /api/auth/verify-reset-otp
+export const verifyResetOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body
+
+  if (!email || !otp) {
+    res.status(400)
+    throw new Error('Please provide email and OTP')
+  }
+
+  const user = await User.findOne({ email })
+  if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
+    res.status(400)
+    throw new Error('Invalid or expired OTP')
+  }
+
+  if (user.resetPasswordOtp !== String(otp)) {
+    res.status(400)
+    throw new Error('Invalid OTP')
+  }
+
+  if (user.resetPasswordOtpExpire < new Date()) {
+    res.status(400)
+    throw new Error('OTP has expired')
+  }
+
+  res.json({ success: true, message: 'OTP verified' })
 })
 
 const sanitizeUser = (user) => ({

@@ -65,6 +65,27 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
       .filter((x) => Boolean(x.url))
       .slice(0, 14)
   }
+  if (payload.latestArrivalsTitle !== undefined) {
+    update['homepage.latestArrivals.title'] = String(payload.latestArrivalsTitle || '').trim()
+  }
+  if (payload.latestArrivalsDescription !== undefined) {
+    update['homepage.latestArrivals.description'] = String(payload.latestArrivalsDescription || '').trim()
+  }
+  if (payload.latestArrivalBanners !== undefined) {
+    const arr = Array.isArray(payload.latestArrivalBanners) ? payload.latestArrivalBanners : []
+    update['homepage.latestArrivalBanners'] = arr
+      .map((x) => ({
+        title: String(x?.title || '').trim(),
+        description: String(x?.description || '').trim(),
+        image: {
+          url: String(x?.image?.url || x?.imageUrl || '').trim(),
+          publicId: String(x?.image?.publicId || x?.imagePublicId || x?.image?.public_id || '').trim(),
+        },
+        to: String(x?.to || '/products').trim() || '/products',
+      }))
+      .filter((x) => Boolean(x.image?.url))
+      .slice(0, 2)
+  }
 
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
