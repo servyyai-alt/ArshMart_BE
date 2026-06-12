@@ -6,6 +6,7 @@ import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { getRazorpayKeys } from '../utils/razorpayClient.js'
+import { sendWhatsAppOrderConfirmation, sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 // @desc    Create Razorpay order
 // @route   POST /api/payment/create-order
@@ -130,6 +131,15 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     } catch (err) {
       console.error('Order email send failed:', err.message)
     }
+  }
+
+  try {
+    await sendWhatsAppOrderConfirmation(order)
+    if (order.trackingNumber) {
+      await sendWhatsAppTrackingUpdate(order)
+    }
+  } catch (err) {
+    console.error('WhatsApp notification failed after payment verification:', err.message)
   }
 
   res.json({ success: true, message: 'Payment verified successfully', order, shiprocket, shiprocketError })

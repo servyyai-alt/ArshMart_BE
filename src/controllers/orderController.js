@@ -7,6 +7,7 @@ import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { sendOrderCancelledEmails } from '../utils/email.js'
 import Settings from '../models/Settings.js'
+import { sendWhatsAppOrderConfirmation, sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 const normalizeCode = (code) => String(code || '').trim().toUpperCase()
 
@@ -101,6 +102,15 @@ export const createOrder = asyncHandler(async (req, res) => {
     } catch (err) {
       console.error('COD order email send failed:', err.message)
     }
+
+    try {
+      await sendWhatsAppOrderConfirmation(order)
+      if (order.trackingNumber) {
+        await sendWhatsAppTrackingUpdate(order)
+      }
+    } catch (err) {
+      console.error('WhatsApp notification failed after COD order creation:', err.message)
+    }
   }
 
   res.status(201).json({ success: true, order })
@@ -189,6 +199,16 @@ export const payOrder = asyncHandler(async (req, res) => {
       console.error('Order email send failed after payOrder:', err.message)
     }
   }
+
+  try {
+    await sendWhatsAppOrderConfirmation(updatedOrder)
+    if (updatedOrder.trackingNumber) {
+      await sendWhatsAppTrackingUpdate(updatedOrder)
+    }
+  } catch (err) {
+    console.error('WhatsApp notification failed after payOrder:', err.message)
+  }
+
   res.json({ success: true, order: updatedOrder })
 })
 

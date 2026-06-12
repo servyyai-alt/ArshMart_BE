@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
 import { createShiprocketOrder, trackOrder, getServiceability, testShiprocketAuth } from '../utils/shiprocketAPI.js'
+import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 // @desc    Create Shiprocket order
 // @route   POST /api/shipping/create/:orderId
@@ -20,6 +21,14 @@ export const createShipping = asyncHandler(async (req, res) => {
     order.courierName = srData.courier_name
   }
   await order.save()
+
+  if (order.trackingNumber) {
+    try {
+      await sendWhatsAppTrackingUpdate(order)
+    } catch (err) {
+      console.error('WhatsApp tracking notification failed after shipping creation:', err.message)
+    }
+  }
 
   res.json({ success: true, data: srData })
 })

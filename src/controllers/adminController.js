@@ -6,6 +6,7 @@ import Order from '../models/Order.js'
 import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
 import GalleryImage from '../models/GalleryImage.js'
 import cloudinary from '../config/cloudinary.js'
+import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 // ─── Products ─────────────────────────────────────────────
 export const adminGetProducts = asyncHandler(async (req, res) => {
@@ -109,6 +110,13 @@ export const adminUpdateOrder = asyncHandler(async (req, res) => {
   }
 
   const updated = await order.save()
+  if (updated.trackingNumber) {
+    try {
+      await sendWhatsAppTrackingUpdate(updated)
+    } catch (err) {
+      console.error('WhatsApp tracking notification failed after admin order update:', err.message)
+    }
+  }
   res.json({ success: true, order: updated })
 })
 

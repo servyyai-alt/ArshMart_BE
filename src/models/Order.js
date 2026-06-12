@@ -96,6 +96,10 @@ const orderSchema = new mongoose.Schema({
     cancelAdminEmailSentAt: Date,
     returnUserEmailSentAt: Date,
     returnAdminEmailSentAt: Date,
+    whatsappOrderConfirmationSentAt: Date,
+    whatsappTrackingUpdateSentAt: Date,
+    whatsappTrackingNumber: String,
+    whatsappLastError: String,
   },
 }, { timestamps: true })
 
