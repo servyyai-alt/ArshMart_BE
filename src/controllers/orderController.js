@@ -8,6 +8,7 @@ import { sendOrderEmails } from '../utils/email.js'
 import { sendOrderCancelledEmails } from '../utils/email.js'
 import Settings from '../models/Settings.js'
 import { sendWhatsAppOrderConfirmation, sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
+import { getRazorpayKeys } from '../utils/razorpayClient.js'
 
 const normalizeCode = (code) => String(code || '').trim().toUpperCase()
 
@@ -247,6 +248,8 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     throw new Error('Shipped orders cannot be cancelled')
   }
 
+  let refund = null
+
   // Best-effort Shiprocket cancellation (if an order id exists)
   if (order.shiprocketOrderId) {
     try {
@@ -256,7 +259,44 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  order.orderStatus = 'cancelled'
+  // Initiate Razorpay refund for prepaid orders.
+  if (order.paymentMethod === 'razorpay' && order.isPaid) {
+    const paymentId = order.paymentResult?.razorpayPaymentId
+    if (paymentId) {
+      try {
+        const { client } = await getRazorpayKeys()
+        if (!client) {
+          throw new Error('Razorpay keys not configured')
+        }
+
+        refund = await client.payments.refund(paymentId, {
+          amount: Math.round(Number(order.totalPrice) * 100),
+          speed: 'optimum',
+        })
+
+        order.refund = {
+          ...(order.refund || {}),
+          refundId: refund.id,
+          refundStatus: refund.status === 'processed' ? 'processed' : 'pending',
+          refundAmount: refund.amount,
+          refundProcessedAt: refund.status === 'processed' ? new Date() : undefined,
+        }
+        order.orderStatus = refund.status === 'processed' ? 'refund_processed' : 'refund_pending'
+      } catch (err) {
+        console.error('Razorpay refund failed during cancellation:', err.message)
+        order.refund = {
+          ...(order.refund || {}),
+          refundStatus: 'failed',
+        }
+        order.orderStatus = 'refund_failed'
+      }
+    } else {
+      order.orderStatus = 'cancelled'
+    }
+  } else {
+    order.orderStatus = 'cancelled'
+  }
+
   order.cancelReason = cancelReason
   const updated = await order.save()
 
@@ -276,5 +316,5 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  res.json({ success: true, order: updated })
+  res.json({ success: true, order: updated, refund })
 })
