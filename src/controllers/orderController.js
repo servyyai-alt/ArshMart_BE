@@ -15,7 +15,7 @@ const normalizeCode = (code) => String(code || '').trim().toUpperCase()
 // @desc    Create order
 // @route   POST /api/orders
 export const createOrder = asyncHandler(async (req, res) => {
-  const { orderItems, shippingAddress, paymentMethod, itemsPrice, shippingPrice, taxPrice, couponCode } = req.body
+  const { orderItems, shippingAddress, paymentMethod, itemsPrice, shippingPrice, couponCode } = req.body
 
   if (!orderItems?.length) {
     res.status(400)
@@ -37,8 +37,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   const safeItemsPrice = Number(itemsPrice) || 0
   const safeShippingPrice = Number(shippingPrice) || 0
-  const safeTaxPrice = Number(taxPrice) || 0
-  const baseTotal = Math.max(0, safeItemsPrice + safeShippingPrice + safeTaxPrice)
+  const baseTotal = Math.max(0, safeItemsPrice + safeShippingPrice)
 
   let coupon = undefined
   let computedTotalPrice = baseTotal
@@ -76,7 +75,6 @@ export const createOrder = asyncHandler(async (req, res) => {
     paymentMethod,
     itemsPrice: safeItemsPrice,
     shippingPrice: safeShippingPrice,
-    taxPrice: safeTaxPrice,
     totalPrice: computedTotalPrice,
     coupon,
   })
@@ -86,6 +84,14 @@ export const createOrder = asyncHandler(async (req, res) => {
       await User.findByIdAndUpdate(req.user._id, { $addToSet: { usedCoupons: coupon.code } })
     } catch (err) {
       console.error('Failed to mark coupon as used:', err.message)
+    }
+  }
+
+  if (shippingAddress?.phone) {
+    try {
+      await User.findByIdAndUpdate(req.user._id, { phone: shippingAddress.phone })
+    } catch (err) {
+      console.error('Failed to update user phone:', err.message)
     }
   }
 

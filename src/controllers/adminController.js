@@ -151,7 +151,6 @@ export const adminGetAnalytics = asyncHandler(async (req, res) => {
     Order.countDocuments({ createdAt: { $gte: lastMonth, $lt: thisMonth } }),
     Order.aggregate([{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
     Order.aggregate([
-      { $match: { isPaid: true } },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } },
     ]),
   ])
