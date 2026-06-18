@@ -74,6 +74,7 @@ const orderSchema = new mongoose.Schema({
   }],
   deliveredAt: Date,
   cancelReason: String,
+  cancelNotes: String,
   // Return/refund summary (mirrors ReturnRequest for quick reads)
   return: {
     hasReturnRequest: { type: Boolean, default: false, index: true },

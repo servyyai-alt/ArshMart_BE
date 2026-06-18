@@ -83,7 +83,7 @@ const buildReturnItems = ({ order, requestedItems }) => {
 // @desc    Create return request
 // @route   POST /api/returns
 export const createReturnRequest = asyncHandler(async (req, res) => {
-  const { orderId, items, reason, notes } = req.body || {}
+  const { orderId, items, reason, notes, manualRefundDetails } = req.body || {}
 
   const order = await Order.findById(orderId).populate('user', 'name email phone')
   // ownership check
@@ -111,6 +111,7 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
       expiresAt,
     },
     pickupAddressSnapshot,
+    refund: order.paymentMethod === 'cod' && manualRefundDetails ? { manualRefundDetails } : undefined,
     audit: [{ by: req.user._id, action: 'requested', meta: { reason: String(reason || '') } }],
   })
 
@@ -289,16 +290,43 @@ export const adminRefundReturn = asyncHandler(async (req, res) => {
   const order = await Order.findById(rr.order?._id || rr.order)
   if (!order) { res.status(404); throw new Error('Order not found') }
 
-  const paymentId = order.paymentResult?.razorpayPaymentId
-  if (!paymentId) {
-    res.status(400)
-    throw new Error('Razorpay payment id not found for this order')
-  }
-
   const refundAmount = Math.round(Number(amount))
   if (!refundAmount || refundAmount < 1) {
     res.status(400)
     throw new Error('Valid refund amount (in paise) is required')
+  }
+
+  if (order.paymentMethod === 'cod') {
+    rr.status = 'refund_processed'
+    rr.refund = {
+      ...(rr.refund || {}),
+      status: 'processed',
+      amount: refundAmount,
+    }
+    rr.audit.push({ by: req.user._id, action: 'refund_processed_manually', meta: { amount: refundAmount } })
+    await rr.save()
+
+    order.refund = {
+      refundStatus: 'processed',
+      refundAmount: refundAmount,
+      refundProcessedAt: new Date(),
+    }
+    order.orderStatus = 'refund_processed'
+    await order.save()
+
+    try {
+      await sendRefundStatusEmails({ returnRequest: rr, order, user: rr.user })
+    } catch (err) {
+      console.error('Refund email send failed:', err.message)
+    }
+
+    return res.json({ success: true, returnRequest: rr, message: 'COD refund marked as processed manually' })
+  }
+
+  const paymentId = order.paymentResult?.razorpayPaymentId
+  if (!paymentId) {
+    res.status(400)
+    throw new Error('Razorpay payment id not found for this order')
   }
 
   const { client } = await getRazorpayKeys()

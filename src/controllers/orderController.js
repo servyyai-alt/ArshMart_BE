@@ -97,6 +97,25 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   // COD orders: consider order placed immediately -> send emails best-effort.
   if (paymentMethod === 'cod') {
+    order.orderStatus = 'processing'
+    
+    // Reduce stock
+    for (const item of order.orderItems) {
+      await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.quantity } })
+    }
+
+    try {
+      const srData = await createShiprocketOrder(order)
+      order.shiprocketOrderId = srData.order_id
+      order.shiprocketShipmentId = srData.shipment_id
+      if (srData.awb_code) {
+        order.trackingNumber = srData.awb_code
+        order.courierName = srData.courier_name
+      }
+    } catch (err) {
+      console.error('Shiprocket create order failed for COD:', err.message)
+    }
+
     try {
       const user = await User.findById(req.user._id).select('name email phone').lean()
       await sendOrderEmails({ order, user })
@@ -222,8 +241,9 @@ export const payOrder = asyncHandler(async (req, res) => {
 // @desc    Cancel my order
 // @route   PUT /api/orders/:id/cancel
 export const cancelOrder = asyncHandler(async (req, res) => {
-  const { reason } = req.body || {}
+  const { reason, notes } = req.body || {}
   const cancelReason = String(reason || '').trim()
+  const cancelNotes = String(notes || '').trim()
   if (!cancelReason) {
     res.status(400)
     throw new Error('Cancellation reason is required')
@@ -304,6 +324,9 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   }
 
   order.cancelReason = cancelReason
+  if (cancelNotes) {
+    order.cancelNotes = cancelNotes
+  }
   const updated = await order.save()
 
   // Send cancellation emails best-effort (user + admin)

@@ -124,9 +124,19 @@ export const trackOrder = async (awbCode) => {
 
 export const getServiceability = async ({ pickupPincode, deliveryPincode, weight }) => {
   const client = await shiprocketClient()
+
+  const envPincode = (process.env.RETURN_WAREHOUSE_PINCODE || '').replace(/\s+/g, '')
+  const finalPickupPincode = (pickupPincode || '').replace(/\s+/g, '') || envPincode
+
+  if (!finalPickupPincode) {
+    const err = new Error('Pickup pincode is required for serviceability check')
+    err.statusCode = 400
+    throw err
+  }
+
   const res = await client.get('/courier/serviceability', {
     params: {
-      pickup_postcode: pickupPincode,
+      pickup_postcode: finalPickupPincode,
       delivery_postcode: deliveryPincode,
       weight,
       cod: 0,

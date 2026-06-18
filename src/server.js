@@ -67,6 +67,7 @@ const apiLimiter = rateLimit({
 
 // ─── Webhooks (must use raw body) ─────────────────────────
 app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }))
+app.use('/api/webhooks/shiprocket', express.json())
 app.use('/api/webhooks', webhookRoutes)
 
 // ─── Parsers ──────────────────────────────────────────────

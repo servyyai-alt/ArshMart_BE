@@ -82,11 +82,33 @@ export const adminGetOrders = asyncHandler(async (req, res) => {
   if (search) query.$or = [{ 'shippingAddress.fullName': { $regex: search, $options: 'i' } }]
 
   const skip = (Number(page) - 1) * Number(limit)
-  const [orders, total] = await Promise.all([
+  
+  const razorpayAggPromise = Order.aggregate([
+    {
+      $match: {
+        paymentMethod: 'razorpay',
+        orderStatus: { $in: ['processing', 'shipped', 'delivered'] }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$totalPrice' },
+        count: { $sum: 1 }
+      }
+    }
+  ])
+
+  const [orders, total, razorpayAgg] = await Promise.all([
     Order.find(query).populate('user', 'name email').sort('-createdAt').skip(skip).limit(Number(limit)),
     Order.countDocuments(query),
+    razorpayAggPromise
   ])
-  res.json({ success: true, orders, total })
+  
+  const razorpayRevenue = razorpayAgg[0]?.total || 0
+  const razorpayOrdersCount = razorpayAgg[0]?.count || 0
+
+  res.json({ success: true, orders, total, razorpayRevenue, razorpayOrdersCount })
 })
 
 export const adminUpdateOrder = asyncHandler(async (req, res) => {

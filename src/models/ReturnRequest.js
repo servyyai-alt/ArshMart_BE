@@ -74,6 +74,14 @@ const returnRequestSchema = new mongoose.Schema(
       speed: { type: String, default: 'optimum' },
       status: { type: String, enum: ['pending', 'processed', 'failed'], default: 'pending' },
       error: String,
+      manualRefundDetails: {
+        method: { type: String, enum: ['upi', 'bank'] },
+        upiId: String,
+        accountName: String,
+        bankName: String,
+        accountNumber: String,
+        ifscCode: String,
+      },
     },
     audit: [
       {
