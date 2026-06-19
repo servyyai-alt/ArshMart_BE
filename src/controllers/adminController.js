@@ -87,7 +87,17 @@ export const adminGetOrders = asyncHandler(async (req, res) => {
     {
       $match: {
         paymentMethod: 'razorpay',
-        orderStatus: { $in: ['processing', 'shipped', 'delivered'] }
+        orderStatus: {
+          $in: ['processing', 'shipped', 'delivered'],
+          $nin: [
+            'cancelled',
+            'return_requested',
+            'returned',
+            'refund_pending',
+            'refund_processed',
+            'refund_failed'
+          ]
+        }
       }
     },
     {
@@ -173,6 +183,30 @@ export const adminGetAnalytics = asyncHandler(async (req, res) => {
     Order.countDocuments({ createdAt: { $gte: lastMonth, $lt: thisMonth } }),
     Order.aggregate([{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
     Order.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              paymentMethod: 'razorpay',
+              orderStatus: {
+                $in: ['processing', 'shipped', 'delivered'],
+                $nin: [
+                  'cancelled',
+                  'return_requested',
+                  'returned',
+                  'refund_pending',
+                  'refund_processed',
+                  'refund_failed'
+                ]
+              }
+            },
+            {
+              paymentMethod: 'cod',
+              orderStatus: 'delivered'
+            }
+          ]
+        }
+      },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } },
     ]),
   ])

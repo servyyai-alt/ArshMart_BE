@@ -1,0 +1,43 @@
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const MONGO_URI = 'mongodb+srv://servyyai_db_user:dV9aZnn1fY879yCS@cluster0.1bgafts.mongodb.net/';
+
+const run = async () => {
+  await mongoose.connect(MONGO_URI);
+  
+  const orderSchema = new mongoose.Schema({}, { strict: false });
+  const Order = mongoose.model('Order', orderSchema);
+
+  const agg = await Order.aggregate([
+    {
+      $match: {
+        paymentMethod: 'razorpay',
+        isPaid: true,
+        orderStatus: {
+          $nin: [
+            'cancelled',
+            'return_requested',
+            'returned',
+            'refund_pending',
+            'refund_processed',
+            'refund_failed'
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$totalPrice' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  console.log('REVENUE_AGGREGATION:', agg);
+  process.exit(0);
+};
+
+run().catch(console.error);
