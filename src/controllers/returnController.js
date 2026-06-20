@@ -92,10 +92,57 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
     throw new Error('Order not found')
   }
 
+  // Check if a return request already exists in DB (even if order status was not correctly synced)
+  const existingRequest = await ReturnRequest.findOne({ order: order._id })
+  if (existingRequest) {
+    res.status(400)
+    throw new Error('Return already requested for this order')
+  }
+
   const { expiresAt } = ensureReturnEligibility({ order })
   const returnItems = buildReturnItems({ order, requestedItems: items })
 
   const pickupAddressSnapshot = { ...(order.shippingAddress?.toObject?.() || order.shippingAddress || {}) }
+
+  let sanitizedRefundDetails = undefined
+  if (order.paymentMethod === 'cod') {
+    if (!manualRefundDetails) {
+      res.status(400)
+      throw new Error('Refund details are required for Cash on Delivery (COD) orders')
+    }
+    const { method } = manualRefundDetails
+    if (method === 'upi') {
+      const upiId = String(manualRefundDetails.upiId || '').trim()
+      if (!upiId) {
+        res.status(400)
+        throw new Error('UPI ID is required for UPI refund method')
+      }
+      sanitizedRefundDetails = {
+        method: 'upi',
+        upiId,
+      }
+    } else if (method === 'bank') {
+      const accountName = String(manualRefundDetails.accountName || '').trim()
+      const bankName = String(manualRefundDetails.bankName || '').trim()
+      const accountNumber = String(manualRefundDetails.accountNumber || '').trim()
+      const ifscCode = String(manualRefundDetails.ifscCode || '').trim()
+
+      if (!accountName || !bankName || !accountNumber || !ifscCode) {
+        res.status(400)
+        throw new Error('All bank account details (Account Name, Bank Name, Account Number, and IFSC Code) are required')
+      }
+      sanitizedRefundDetails = {
+        method: 'bank',
+        accountName,
+        bankName,
+        accountNumber,
+        ifscCode,
+      }
+    } else {
+      res.status(400)
+      throw new Error('Please specify a valid refund method (upi or bank)')
+    }
+  }
 
   const rr = await ReturnRequest.create({
     user: req.user._id,
@@ -111,55 +158,57 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
       expiresAt,
     },
     pickupAddressSnapshot,
-    refund: order.paymentMethod === 'cod' && manualRefundDetails ? { manualRefundDetails } : undefined,
+    refund: sanitizedRefundDetails ? { manualRefundDetails: sanitizedRefundDetails } : undefined,
     audit: [{ by: req.user._id, action: 'requested', meta: { reason: String(reason || '') } }],
   })
 
   // Shiprocket: serviceability + create return (best-effort but will fail request if not serviceable)
-  if (!process.env.RETURN_WAREHOUSE_PINCODE) {
-    res.status(500)
-    throw new Error('Return warehouse pincode not configured (RETURN_WAREHOUSE_PINCODE)')
-  }
-  const serviceability = await getReturnServiceability({
-    pickupPincode: order.shippingAddress?.pincode,
-    deliveryPincode: process.env.RETURN_WAREHOUSE_PINCODE,
-    weight: 0.5,
-  })
-
-  rr.shiprocket = { ...(rr.shiprocket || {}), serviceability }
-
-  // Create return order
-  let sr = null
   try {
-    sr = await createShiprocketReturnOrder({ order, returnRequest: rr, items: returnItems })
+    if (!process.env.RETURN_WAREHOUSE_PINCODE) {
+      res.status(500)
+      throw new Error('Return warehouse pincode not configured (RETURN_WAREHOUSE_PINCODE)')
+    }
+    const serviceability = await getReturnServiceability({
+      pickupPincode: order.shippingAddress?.pincode,
+      deliveryPincode: process.env.RETURN_WAREHOUSE_PINCODE,
+      weight: 0.5,
+    })
+
+    rr.shiprocket = { ...(rr.shiprocket || {}), serviceability }
+
+    // Create return order
+    const sr = await createShiprocketReturnOrder({ order, returnRequest: rr, items: returnItems })
+    
+    const returnOrderId = sr?.order_id || sr?.return_order_id || sr?.orderId || sr?.data?.order_id
+    const shipmentId = sr?.shipment_id || sr?.data?.shipment_id
+    const awb = sr?.awb_code || sr?.awb || sr?.data?.awb_code
+    const courierName = sr?.courier_name || sr?.courier || sr?.data?.courier_name
+
+    rr.shiprocket = {
+      ...(rr.shiprocket || {}),
+      createResponse: sr,
+      returnOrderId,
+      shipmentId,
+      awb,
+      courierName,
+      pickupScheduledAt: new Date(),
+    }
+
+    if (returnOrderId || shipmentId || awb) {
+      rr.status = 'pickup_scheduled'
+      rr.audit.push({ by: req.user._id, action: 'pickup_scheduled', meta: { returnOrderId, shipmentId, awb } })
+    } else {
+      rr.audit.push({ by: req.user._id, action: 'shiprocket_return_created', meta: { note: 'No identifiers returned', sr } })
+    }
+    await rr.save()
+
   } catch (err) {
-    // Surface Shiprocket details to speed up configuration fixes.
+    // Rollback created ReturnRequest to prevent database inconsistency and 409 duplicate key conflict on subsequent attempts
+    await ReturnRequest.deleteOne({ _id: rr._id })
     const details = err.details ? ` Details: ${JSON.stringify(err.details)}` : ''
     res.status(err.statusCode || 500)
     throw new Error(`${err.message}${details}`)
   }
-  const returnOrderId = sr?.order_id || sr?.return_order_id || sr?.orderId || sr?.data?.order_id
-  const shipmentId = sr?.shipment_id || sr?.data?.shipment_id
-  const awb = sr?.awb_code || sr?.awb || sr?.data?.awb_code
-  const courierName = sr?.courier_name || sr?.courier || sr?.data?.courier_name
-
-  rr.shiprocket = {
-    ...(rr.shiprocket || {}),
-    createResponse: sr,
-    returnOrderId,
-    shipmentId,
-    awb,
-    courierName,
-    pickupScheduledAt: new Date(),
-  }
-
-  if (returnOrderId || shipmentId || awb) {
-    rr.status = 'pickup_scheduled'
-    rr.audit.push({ by: req.user._id, action: 'pickup_scheduled', meta: { returnOrderId, shipmentId, awb } })
-  } else {
-    rr.audit.push({ by: req.user._id, action: 'shiprocket_return_created', meta: { note: 'No identifiers returned', sr } })
-  }
-  await rr.save()
 
   // Update order summary
   order.return = {

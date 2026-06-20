@@ -25,12 +25,17 @@ import galleryRoutes from './routes/galleryRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import returnRoutes from './routes/returnRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
+import checkoutRoutes from './routes/checkoutRoutes.js'
+import { startAbandonedCheckoutCron } from './utils/abandonedCheckoutCron.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Connect to MongoDB
 connectDB()
+if (process.env.NODE_ENV !== 'test') {
+  startAbandonedCheckoutCron()
+}
 
 const app = express()
 
@@ -93,6 +98,7 @@ app.use('/api/gallery', apiLimiter, galleryRoutes)
 app.use('/api/users', apiLimiter, userRoutes)
 app.use('/api/returns', apiLimiter, returnRoutes)
 app.use('/api/coupons', apiLimiter, couponRoutes)
+app.use('/api/checkouts', apiLimiter, checkoutRoutes)
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {

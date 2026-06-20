@@ -17,6 +17,10 @@ const normalizeIndianPhone10 = (value) => {
   return digits // will fail validation later
 }
 
+const normalizePincode = (value) => {
+  return String(value || '').replace(/\s+/g, '')
+}
+
 const getShiprocketConfig = async () => {
   const doc = await Settings.findOne({ singleton: 'global' })
     .select('integrations.shiprocket')
@@ -199,8 +203,22 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     throw e
   }
 
+  const pickupPincode = normalizePincode(addr.pincode)
+  if (!pickupPincode || !/^\d{6}$/.test(pickupPincode)) {
+    const e = new Error(`Customer pickup pincode must be exactly 6 digits. Invalid pincode: "${addr.pincode}"`)
+    e.statusCode = 400
+    throw e
+  }
+
+  const warehousePincode = normalizePincode(warehouse.pincode)
+  if (!warehousePincode || !/^\d{6}$/.test(warehousePincode)) {
+    const e = new Error(`Return warehouse pincode must be exactly 6 digits. Invalid pincode: "${warehouse.pincode}"`)
+    e.statusCode = 500
+    throw e
+  }
+
   const payload = {
-    order_id: order._id.toString(),
+    order_id: `${order._id.toString()}-RET`,
     order_date: new Date().toISOString().split('T')[0],
     pickup_customer_name: addr.fullName,
     pickup_last_name: '',
@@ -209,7 +227,7 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     pickup_city: addr.city,
     pickup_state: addr.state,
     pickup_country: addr.country || 'India',
-    pickup_pincode: addr.pincode,
+    pickup_pincode: pickupPincode,
     pickup_email: order.user?.email || process.env.ADMIN_EMAIL || 'support@sandhaikart.com',
     pickup_phone: pickupPhone,
     shipping_customer_name: warehouse.name || 'Sandhaikart Warehouse',
@@ -219,7 +237,7 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     shipping_city: warehouse.city,
     shipping_state: warehouse.state,
     shipping_country: warehouse.country || 'India',
-    shipping_pincode: warehouse.pincode,
+    shipping_pincode: warehousePincode,
     shipping_phone: warehousePhone,
     order_items: (items || []).map((it) => ({
       name: it.name,
@@ -235,7 +253,56 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     breadth: 10,
     height: 10,
     weight: 0.5,
-    return_reason: returnRequest?.reason || '',
+    return_reason: (() => {
+      const validReasons = [
+        'bought by mistake',
+        'better price available',
+        'performance or quality not adequate',
+        'incompatible or not useful',
+        'product damaged, but shipping box ok',
+        'item arrived too late',
+        'missing parts or accessories',
+        'both product and shipping box damaged',
+        'wrong item was sent',
+        'item defective or doesn\'t work',
+        'no longer needed',
+        'didn\'t approve purchase',
+        'inaccurate website description',
+        'return against replacement',
+        'delay refund',
+        'delivered late',
+        'product does not match description on website',
+        'both product & outer box damaged',
+        'defective or does not work',
+        'product damaged, but outer box ok',
+        'incorrect item delivered',
+        'product performance/quality is not up to my expectations',
+        'other',
+        'changed my mind',
+        'does not fit',
+        'size not as expected',
+        'item is damaged',
+        'received wrong item',
+        'parcel damaged on arrival',
+        'quality not as expected',
+        'missing item or accessories',
+        'performance not adequate',
+        'not as described',
+        'arrived too late',
+        'order not received',
+        'empty package',
+        'wrong item or wrong colour was sent',
+        'item defective',
+        'expired',
+        'spoilt or does not work',
+        'items or parts missing',
+        'size or quantity issues',
+        'status as delivered but order not received',
+        'n/a'
+      ];
+      const raw = String(returnRequest?.reason || '').trim().toLowerCase();
+      return validReasons.find(r => r === raw) || 'other';
+    })(),
   }
 
   try {
