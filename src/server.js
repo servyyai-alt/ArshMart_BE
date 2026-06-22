@@ -27,6 +27,7 @@ import returnRoutes from './routes/returnRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import checkoutRoutes from './routes/checkoutRoutes.js'
 import { startAbandonedCheckoutCron } from './utils/abandonedCheckoutCron.js'
+import { verifySmtpConnection } from './utils/email.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -35,6 +36,7 @@ const __dirname = path.dirname(__filename)
 connectDB()
 if (process.env.NODE_ENV !== 'test') {
   startAbandonedCheckoutCron()
+  verifySmtpConnection()
 }
 
 const app = express()

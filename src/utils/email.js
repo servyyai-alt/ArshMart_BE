@@ -31,6 +31,22 @@ const createTransporter = (cfg) => nodemailer.createTransport({
   auth: { user: cfg.user, pass: cfg.pass },
 })
 
+export const verifySmtpConnection = async () => {
+  const cfg = getMailConfig()
+  if (!isMailConfigured(cfg)) {
+    console.log("⚠️ SMTP is not configured completely in environment variables.");
+    return;
+  }
+  try {
+    const transporter = createTransporter(cfg)
+    console.log("Verifying SMTP connection...");
+    await transporter.verify()
+    console.log("✅ SMTP connection is verified successfully!");
+  } catch (error) {
+    console.error("❌ SMTP Transporter verification failed:", error);
+  }
+}
+
 const formatMoney = (n) => {
   const num = Number(n || 0)
   return `₹${num.toLocaleString('en-IN')}`
@@ -167,6 +183,7 @@ const renderOrderText = ({ appName, order, user, isAdmin }) => {
 }
 
 export const sendOrderEmails = async ({ order, user }) => {
+  console.log("Order email triggered");
   const cfg = getMailConfig()
   if (!isMailConfigured(cfg)) return { skipped: true }
   const transporter = createTransporter(cfg)
@@ -183,23 +200,35 @@ export const sendOrderEmails = async ({ order, user }) => {
   const results = { user: null, admin: null }
 
   if (user?.email) {
-    results.user = await transporter.sendMail({
-      from: cfg.from,
-      to: user.email,
-      subject: subjectUser,
-      text: textUser,
-      html: htmlUser,
-    })
+    try {
+      results.user = await transporter.sendMail({
+        from: cfg.from,
+        to: user.email,
+        subject: subjectUser,
+        text: textUser,
+        html: htmlUser,
+      })
+      console.log("Customer email sent");
+    } catch (error) {
+      console.error("Email error:", error);
+    }
   }
 
-  if (cfg.adminEmail) {
-    results.admin = await transporter.sendMail({
-      from: cfg.from,
-      to: cfg.adminEmail,
-      subject: subjectAdmin,
-      text: textAdmin,
-      html: htmlAdmin,
-    })
+  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@sandhaikart.com')) ? cfg.user : cfg.adminEmail
+
+  if (adminRecipient) {
+    try {
+      results.admin = await transporter.sendMail({
+        from: cfg.from,
+        to: adminRecipient,
+        subject: subjectAdmin,
+        text: textAdmin,
+        html: htmlAdmin,
+      })
+      console.log("Admin email sent");
+    } catch (error) {
+      console.error("Email error:", error);
+    }
   }
 
   return results
@@ -272,6 +301,7 @@ const renderCancelHtml = ({ appName, order, user, reason, isAdmin }) => {
 }
 
 export const sendOrderCancelledEmails = async ({ order, user, reason }) => {
+  console.log("Cancel email triggered");
   const cfg = getMailConfig()
   if (!isMailConfigured(cfg)) return { skipped: true }
   const transporter = createTransporter(cfg)
@@ -288,23 +318,35 @@ export const sendOrderCancelledEmails = async ({ order, user, reason }) => {
   const results = { user: null, admin: null }
 
   if (user?.email) {
-    results.user = await transporter.sendMail({
-      from: cfg.from,
-      to: user.email,
-      subject: subjectUser,
-      text: textUser,
-      html: htmlUser,
-    })
+    try {
+      results.user = await transporter.sendMail({
+        from: cfg.from,
+        to: user.email,
+        subject: subjectUser,
+        text: textUser,
+        html: htmlUser,
+      })
+      console.log("Customer email sent");
+    } catch (error) {
+      console.error("Email error:", error);
+    }
   }
 
-  if (cfg.adminEmail) {
-    results.admin = await transporter.sendMail({
-      from: cfg.from,
-      to: cfg.adminEmail,
-      subject: subjectAdmin,
-      text: textAdmin,
-      html: htmlAdmin,
-    })
+  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@sandhaikart.com')) ? cfg.user : cfg.adminEmail
+
+  if (adminRecipient) {
+    try {
+      results.admin = await transporter.sendMail({
+        from: cfg.from,
+        to: adminRecipient,
+        subject: subjectAdmin,
+        text: textAdmin,
+        html: htmlAdmin,
+      })
+      console.log("Admin email sent");
+    } catch (error) {
+      console.error("Email error:", error);
+    }
   }
 
   return results
