@@ -105,43 +105,41 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
   const pickupAddressSnapshot = { ...(order.shippingAddress?.toObject?.() || order.shippingAddress || {}) }
 
   let sanitizedRefundDetails = undefined
-  if (order.paymentMethod === 'cod') {
-    if (!manualRefundDetails) {
+  if (!manualRefundDetails) {
+    res.status(400)
+    throw new Error('Refund details are required')
+  }
+  const { method } = manualRefundDetails
+  if (method === 'upi') {
+    const upiId = String(manualRefundDetails.upiId || '').trim()
+    if (!upiId) {
       res.status(400)
-      throw new Error('Refund details are required for Cash on Delivery (COD) orders')
+      throw new Error('UPI ID is required for UPI refund method')
     }
-    const { method } = manualRefundDetails
-    if (method === 'upi') {
-      const upiId = String(manualRefundDetails.upiId || '').trim()
-      if (!upiId) {
-        res.status(400)
-        throw new Error('UPI ID is required for UPI refund method')
-      }
-      sanitizedRefundDetails = {
-        method: 'upi',
-        upiId,
-      }
-    } else if (method === 'bank') {
-      const accountName = String(manualRefundDetails.accountName || '').trim()
-      const bankName = String(manualRefundDetails.bankName || '').trim()
-      const accountNumber = String(manualRefundDetails.accountNumber || '').trim()
-      const ifscCode = String(manualRefundDetails.ifscCode || '').trim()
+    sanitizedRefundDetails = {
+      method: 'upi',
+      upiId,
+    }
+  } else if (method === 'bank') {
+    const accountName = String(manualRefundDetails.accountName || '').trim()
+    const bankName = String(manualRefundDetails.bankName || '').trim()
+    const accountNumber = String(manualRefundDetails.accountNumber || '').trim()
+    const ifscCode = String(manualRefundDetails.ifscCode || '').trim()
 
-      if (!accountName || !bankName || !accountNumber || !ifscCode) {
-        res.status(400)
-        throw new Error('All bank account details (Account Name, Bank Name, Account Number, and IFSC Code) are required')
-      }
-      sanitizedRefundDetails = {
-        method: 'bank',
-        accountName,
-        bankName,
-        accountNumber,
-        ifscCode,
-      }
-    } else {
+    if (!accountName || !bankName || !accountNumber || !ifscCode) {
       res.status(400)
-      throw new Error('Please specify a valid refund method (upi or bank)')
+      throw new Error('All bank account details (Account Name, Bank Name, Account Number, and IFSC Code) are required')
     }
+    sanitizedRefundDetails = {
+      method: 'bank',
+      accountName,
+      bankName,
+      accountNumber,
+      ifscCode,
+    }
+  } else {
+    res.status(400)
+    throw new Error('Please specify a valid refund method (upi or bank)')
   }
 
   const rr = await ReturnRequest.create({
