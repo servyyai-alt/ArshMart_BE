@@ -88,6 +88,14 @@ const orderSchema = new mongoose.Schema({
     refundStatus: String,
     refundAmount: Number, // in paise
     refundProcessedAt: Date,
+    manualRefundDetails: {
+      method: { type: String, enum: ['upi', 'bank'] },
+      upiId: String,
+      accountName: String,
+      bankName: String,
+      accountNumber: String,
+      ifscCode: String,
+    },
   },
   notification: {
     userEmailSentAt: Date,

@@ -241,12 +241,50 @@ export const payOrder = asyncHandler(async (req, res) => {
 // @desc    Cancel my order
 // @route   PUT /api/orders/:id/cancel
 export const cancelOrder = asyncHandler(async (req, res) => {
-  const { reason, notes } = req.body || {}
+  const { reason, notes, manualRefundDetails } = req.body || {}
   const cancelReason = String(reason || '').trim()
   const cancelNotes = String(notes || '').trim()
   if (!cancelReason) {
     res.status(400)
     throw new Error('Cancellation reason is required')
+  }
+
+  let sanitizedRefundDetails = undefined
+  if (!manualRefundDetails) {
+    res.status(400)
+    throw new Error('Refund details are required')
+  }
+  const { method } = manualRefundDetails
+  if (method === 'upi') {
+    const upiId = String(manualRefundDetails.upiId || '').trim()
+    if (!upiId) {
+      res.status(400)
+      throw new Error('UPI ID is required for UPI refund method')
+    }
+    sanitizedRefundDetails = {
+      method: 'upi',
+      upiId,
+    }
+  } else if (method === 'bank') {
+    const accountName = String(manualRefundDetails.accountName || '').trim()
+    const bankName = String(manualRefundDetails.bankName || '').trim()
+    const accountNumber = String(manualRefundDetails.accountNumber || '').trim()
+    const ifscCode = String(manualRefundDetails.ifscCode || '').trim()
+
+    if (!accountName || !bankName || !accountNumber || !ifscCode) {
+      res.status(400)
+      throw new Error('All bank account details (Account Name, Bank Name, Account Number, and IFSC Code) are required')
+    }
+    sanitizedRefundDetails = {
+      method: 'bank',
+      accountName,
+      bankName,
+      accountNumber,
+      ifscCode,
+    }
+  } else {
+    res.status(400)
+    throw new Error('Please specify a valid refund method (upi or bank)')
   }
 
   const order = await Order.findById(req.params.id)
@@ -259,6 +297,11 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
     res.status(403)
     throw new Error('Not authorized to cancel this order')
+  }
+
+  order.refund = {
+    ...(order.refund || {}),
+    manualRefundDetails: sanitizedRefundDetails
   }
 
   if (order.orderStatus === 'cancelled') {
