@@ -22,9 +22,16 @@ export const createOrder = asyncHandler(async (req, res) => {
     throw new Error('No order items')
   }
 
-  // Verify stock and prices
+  // Fetch all products in one query instead of one DB call per item.
+  const productIds = [...new Set(orderItems.map((item) => String(item.product)))]
+  const products = await Product.find({ _id: { $in: productIds } })
+    .select('_id name stock')
+    .lean()
+
+  const productMap = new Map(products.map((product) => [String(product._id), product]))
+
   for (const item of orderItems) {
-    const product = await Product.findById(item.product)
+    const product = productMap.get(String(item.product))
     if (!product) {
       res.status(404)
       throw new Error(`Product not found: ${item.name}`)
@@ -87,56 +94,31 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  if (shippingAddress?.phone) {
-    try {
-      await User.findByIdAndUpdate(req.user._id, { phone: shippingAddress.phone })
-    } catch (err) {
-      console.error('Failed to update user phone:', err.message)
-    }
-  }
-
-  // COD orders: consider order placed immediately -> send emails best-effort.
+  // Run notification work after the order exists, but do not block the API response.
   if (paymentMethod === 'cod') {
-    order.orderStatus = 'processing'
-    
-    // Reduce stock
-    for (const item of order.orderItems) {
-      await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.quantity } })
-    }
+    setImmediate(async () => {
+      try {
+        const user = await User.findById(req.user._id).select('name email phone').lean()
+        await sendOrderEmails({ order, user })
+        order.notification = {
+          ...(order.notification || {}),
+          userEmailSentAt: new Date(),
+          adminEmailSentAt: new Date(),
+        }
+        await order.save()
+      } catch (err) {
+        console.error('COD order email send failed:', err.message)
+       }
 
-    try {
-      const srData = await createShiprocketOrder(order)
-      order.shiprocketOrderId = srData.order_id
-      order.shiprocketShipmentId = srData.shipment_id
-      if (srData.awb_code) {
-        order.trackingNumber = srData.awb_code
-        order.courierName = srData.courier_name
+      try {
+        await sendWhatsAppOrderConfirmation(order)
+        if (order.trackingNumber) {
+          await sendWhatsAppTrackingUpdate(order)
+        }
+      } catch (err) {
+        console.error('WhatsApp notification failed after COD order creation:', err.message)
       }
-    } catch (err) {
-      console.error('Shiprocket create order failed for COD:', err.message)
-    }
-
-    try {
-      const user = await User.findById(req.user._id).select('name email phone').lean()
-      await sendOrderEmails({ order, user })
-      order.notification = {
-        ...(order.notification || {}),
-        userEmailSentAt: new Date(),
-        adminEmailSentAt: new Date(),
-      }
-      await order.save()
-    } catch (err) {
-      console.error('COD order email send failed:', err.message)
-    }
-
-    try {
-      await sendWhatsAppOrderConfirmation(order)
-      if (order.trackingNumber) {
-        await sendWhatsAppTrackingUpdate(order)
-      }
-    } catch (err) {
-      console.error('WhatsApp notification failed after COD order creation:', err.message)
-    }
+    })
   }
 
   res.status(201).json({ success: true, order })
