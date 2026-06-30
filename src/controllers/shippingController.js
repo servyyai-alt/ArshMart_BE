@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
-import { createShiprocketOrder, trackOrder, getServiceability, testShiprocketAuth } from '../utils/shiprocketAPI.js'
+import { syncShiprocketOrder, trackOrder, getServiceability, testShiprocketAuth } from '../utils/shiprocketAPI.js'
 import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 // @desc    Create Shiprocket order
@@ -12,15 +12,7 @@ export const createShipping = asyncHandler(async (req, res) => {
     throw new Error('Order not found')
   }
 
-  const srData = await createShiprocketOrder(order)
-
-  order.shiprocketOrderId = srData.order_id
-  order.shiprocketShipmentId = srData.shipment_id
-  if (srData.awb_code) {
-    order.trackingNumber = srData.awb_code
-    order.courierName = srData.courier_name
-  }
-  await order.save()
+  const srData = await syncShiprocketOrder(order)
 
   if (order.trackingNumber) {
     try {

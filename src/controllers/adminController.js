@@ -3,12 +3,46 @@ import User from '../models/User.js'
 import Product from '../models/Product.js'
 import Category from '../models/Category.js'
 import Order from '../models/Order.js'
-import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
+import { syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import GalleryImage from '../models/GalleryImage.js'
 import cloudinary from '../config/cloudinary.js'
 import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 
 // ─── Products ─────────────────────────────────────────────
+const highlightItemToText = (item) => {
+  if (typeof item === 'string') return item
+  if (item && typeof item === 'object') {
+    return [item.key, item.value].filter(Boolean).join(': ')
+  }
+  return ''
+}
+
+const normalizeHighlights = (highlights) => {
+  if (typeof highlights === 'string') {
+    return highlights
+      .split(/\r?\n/)
+      .map(line => line.replace(/^\s*(?:[-*]|\u2022)\s*/, '').trim())
+      .filter(Boolean)
+  }
+
+  if (Array.isArray(highlights)) {
+    return highlights
+      .map(highlightItemToText)
+      .map(text => String(text).trim())
+      .filter(Boolean)
+  }
+
+  return undefined
+}
+
+const normalizeProductPayload = (body = {}) => {
+  const payload = { ...body }
+  if ('highlights' in payload) {
+    payload.highlights = normalizeHighlights(payload.highlights) || []
+  }
+  return payload
+}
+
 export const adminGetProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, keyword, category } = req.query
   const query = {}
@@ -24,12 +58,12 @@ export const adminGetProducts = asyncHandler(async (req, res) => {
 })
 
 export const adminCreateProduct = asyncHandler(async (req, res) => {
-  const product = await Product.create(req.body)
+  const product = await Product.create(normalizeProductPayload(req.body))
   res.status(201).json({ success: true, product })
 })
 
 export const adminUpdateProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+  const product = await Product.findByIdAndUpdate(req.params.id, normalizeProductPayload(req.body), { new: true, runValidators: true })
   if (!product) { res.status(404); throw new Error('Product not found') }
   res.json({ success: true, product })
 })
@@ -132,13 +166,7 @@ export const adminUpdateOrder = asyncHandler(async (req, res) => {
 
   // If shipped and no Shiprocket order yet, create one
   if (status === 'shipped' && !order.shiprocketOrderId) {
-    const srData = await createShiprocketOrder(order)
-    order.shiprocketOrderId = srData.order_id
-    order.shiprocketShipmentId = srData.shipment_id
-    if (srData.awb_code) {
-      order.trackingNumber = srData.awb_code
-      order.courierName = srData.courier_name
-    }
+    await syncShiprocketOrder(order)
   }
 
   const updated = await order.save()

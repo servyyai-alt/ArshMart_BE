@@ -68,6 +68,24 @@ export const createShiprocketOrder = async (order) => {
   const { shippingAddress: addr, orderItems } = order
 
   const { pickupLocation } = await getShiprocketConfig()
+  const billingPhone = normalizeIndianPhone10(addr?.phone)
+  const billingPincode = normalizePincode(addr?.pincode)
+
+  if (!addr?.fullName || !addr?.addressLine1 || !addr?.city || !addr?.state) {
+    const e = new Error('Shipping address is incomplete for Shiprocket order creation')
+    e.statusCode = 400
+    throw e
+  }
+  if (!billingPhone || billingPhone.length !== 10) {
+    const e = new Error(`Customer phone must be 10 digits. Invalid phone: "${addr?.phone}"`)
+    e.statusCode = 400
+    throw e
+  }
+  if (!billingPincode || !/^\d{6}$/.test(billingPincode)) {
+    const e = new Error(`Customer pincode must be exactly 6 digits. Invalid pincode: "${addr?.pincode}"`)
+    e.statusCode = 400
+    throw e
+  }
 
   let billingEmail = ''
   if (order.user?.email) billingEmail = order.user.email
@@ -86,11 +104,11 @@ export const createShiprocketOrder = async (order) => {
     billing_address: addr.addressLine1,
     billing_address_2: addr.addressLine2 || '',
     billing_city: addr.city,
-    billing_pincode: addr.pincode,
+    billing_pincode: billingPincode,
     billing_state: addr.state,
     billing_country: 'India',
     billing_email: billingEmail,
-    billing_phone: addr.phone,
+    billing_phone: billingPhone,
     shipping_is_billing: true,
     order_items: orderItems.map(item => ({
       name: item.name,
@@ -118,6 +136,22 @@ export const createShiprocketOrder = async (order) => {
     e.details = err.response?.data
     throw e
   }
+}
+
+export const syncShiprocketOrder = async (order) => {
+  if (order?.shiprocketOrderId) {
+    return null
+  }
+
+  const srData = await createShiprocketOrder(order)
+  order.shiprocketOrderId = srData.order_id
+  order.shiprocketShipmentId = srData.shipment_id
+  if (srData.awb_code) {
+    order.trackingNumber = srData.awb_code
+    order.courierName = srData.courier_name
+  }
+  await order.save()
+  return srData
 }
 
 export const trackOrder = async (awbCode) => {

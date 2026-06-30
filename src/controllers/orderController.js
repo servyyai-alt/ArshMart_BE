@@ -1,8 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
-import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
-import { cancelShiprocketOrder } from '../utils/shiprocketAPI.js'
+import { cancelShiprocketOrder, syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { sendOrderCancelledEmails } from '../utils/email.js'
@@ -85,6 +84,15 @@ export const createOrder = asyncHandler(async (req, res) => {
     totalPrice: computedTotalPrice,
     coupon,
   })
+
+  // Push COD orders to Shiprocket immediately so they appear in the dashboard right away.
+  if (paymentMethod === 'cod') {
+    try {
+      await syncShiprocketOrder(order)
+    } catch (err) {
+      console.error('Shiprocket create order failed after createOrder:', err.message)
+    }
+  }
 
   if (coupon?.code) {
     try {
@@ -179,14 +187,7 @@ export const payOrder = asyncHandler(async (req, res) => {
   // Auto-create Shiprocket order after successful payment (best-effort).
   if (!updatedOrder.shiprocketOrderId) {
     try {
-      const srData = await createShiprocketOrder(updatedOrder)
-      updatedOrder.shiprocketOrderId = srData.order_id
-      updatedOrder.shiprocketShipmentId = srData.shipment_id
-      if (srData.awb_code) {
-        updatedOrder.trackingNumber = srData.awb_code
-        updatedOrder.courierName = srData.courier_name
-      }
-      await updatedOrder.save()
+      await syncShiprocketOrder(updatedOrder)
     } catch (err) {
       console.error('Shiprocket create order failed after payOrder:', err.message)
     }

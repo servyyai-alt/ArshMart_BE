@@ -47,10 +47,7 @@ const productSchema = new mongoose.Schema({
     key: String,
     value: String,
   }],
-  highlights: [{
-    key: String,
-    value: String,
-  }],
+  highlights: [mongoose.Schema.Types.Mixed],
   ratings: { type: Number, default: 0 },
   numReviews: { type: Number, default: 0 },
   reviews: [reviewSchema],

@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler'
 import crypto from 'crypto'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
-import { createShiprocketOrder } from '../utils/shiprocketAPI.js'
+import { syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { getRazorpayKeys } from '../utils/razorpayClient.js'
@@ -96,19 +96,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   let shiprocketError = null
   if (!order.shiprocketOrderId) {
     try {
-      const srData = await createShiprocketOrder(order)
-      order.shiprocketOrderId = srData.order_id
-      order.shiprocketShipmentId = srData.shipment_id
-      if (srData.awb_code) {
-        order.trackingNumber = srData.awb_code
-        order.courierName = srData.courier_name
-      }
-      await order.save()
+      const srData = await syncShiprocketOrder(order)
       shiprocket = {
-        order_id: srData.order_id,
-        shipment_id: srData.shipment_id,
-        awb_code: srData.awb_code,
-        courier_name: srData.courier_name,
+        order_id: srData?.order_id,
+        shipment_id: srData?.shipment_id,
+        awb_code: srData?.awb_code,
+        courier_name: srData?.courier_name,
       }
     } catch (err) {
       shiprocketError = err.message
