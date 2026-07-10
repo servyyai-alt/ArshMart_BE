@@ -66,7 +66,7 @@ const renderOrderHtml = ({ appName, order, user, isAdmin }) => {
     <tr>
       <td style="padding:12px;border-bottom:1px solid #eef2f7;">
         <div style="font-weight:600;color:#0f172a;">${escapeHtml(item.name)}</div>
-        <div style="color:#64748b;font-size:12px;margin-top:2px;">Qty: ${escapeHtml(item.quantity)} · Price: ${escapeHtml(formatMoney(item.price))}</div>
+        <div style="color:#64748b;font-size:12px;margin-top:2px;">Qty: ${escapeHtml(item.quantity)} · Price: ${escapeHtml(formatMoney(item.price))}${item.hsnCode ? ` · HSN: ${escapeHtml(item.hsnCode)}` : ''}</div>
       </td>
       <td style="padding:12px;border-bottom:1px solid #eef2f7;text-align:right;font-weight:600;color:#0f172a;">
         ${escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0)))}
@@ -176,7 +176,7 @@ const renderOrderText = ({ appName, order, user, isAdmin }) => {
   lines.push(`Phone: ${addr.phone || user?.phone || ''}`)
   lines.push('Items:')
   for (const item of (order.orderItems || [])) {
-    lines.push(`- ${item.name} x${item.quantity} @ ${formatMoney(item.price)} = ${formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0))}`)
+    lines.push(`- ${item.name} x${item.quantity} @ ${formatMoney(item.price)} = ${formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0))}${item.hsnCode ? ` (HSN: ${item.hsnCode})` : ''}`)
   }
   lines.push(`Items: ${formatMoney(order.itemsPrice)} | Shipping: ${formatMoney(order.shippingPrice)} | Tax: ${formatMoney(order.taxPrice)} | Total: ${formatMoney(order.totalPrice)}`)
   return lines.join('\n')

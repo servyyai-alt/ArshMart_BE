@@ -61,6 +61,22 @@ const productSchema = new mongoose.Schema({
   },
   sku: { type: String, unique: true, sparse: true },
   tags: [String],
+  hsnCode: {
+    type: String,
+    required: [true, 'HSN Code is required'],
+    trim: true,
+    validate: {
+      validator: function (v) {
+        return /^\d{4}$|^\d{6}$|^\d{8}$/.test(v)
+      },
+      message: 'HSN Code must be 4, 6, or 8 digits',
+    },
+  },
+  gstPercentage: {
+    type: Number,
+    required: [true, 'GST Percentage is required'],
+    enum: [0, 3, 5, 12, 18, 28],
+  },
 }, { timestamps: true })
 
 // Auto-generate slug

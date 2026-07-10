@@ -24,7 +24,7 @@ export const createOrder = asyncHandler(async (req, res) => {
   // Fetch all products in one query instead of one DB call per item.
   const productIds = [...new Set(orderItems.map((item) => String(item.product)))]
   const products = await Product.find({ _id: { $in: productIds } })
-    .select('_id name stock')
+    .select('_id name stock hsnCode')
     .lean()
 
   const productMap = new Map(products.map((product) => [String(product._id), product]))
@@ -40,6 +40,11 @@ export const createOrder = asyncHandler(async (req, res) => {
       throw new Error(`Insufficient stock for: ${product.name}`)
     }
   }
+
+  const orderItemsWithHsn = orderItems.map((item) => {
+    const product = productMap.get(String(item.product))
+    return { ...item, hsnCode: product?.hsnCode || '' }
+  })
 
   const safeItemsPrice = Number(itemsPrice) || 0
   const safeShippingPrice = Number(shippingPrice) || 0
@@ -76,7 +81,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   const order = await Order.create({
     user: req.user._id,
-    orderItems,
+    orderItems: orderItemsWithHsn,
     shippingAddress,
     paymentMethod,
     itemsPrice: safeItemsPrice,
