@@ -21,6 +21,24 @@ const reviewSchema = new mongoose.Schema({
   comment: { type: String, required: true },
 }, { timestamps: true })
 
+const dimensionsSchema = new mongoose.Schema({
+  length: { type: Number, min: 0 },
+  width: { type: Number, min: 0 },
+  breadth: { type: Number, min: 0 }, // legacy alias for older records
+  height: { type: Number, min: 0 },
+  dimensionUnit: {
+    type: String,
+    enum: ['mm', 'cm', 'm', 'in', 'ft'],
+    default: 'cm',
+  },
+  weight: { type: Number, min: 0 },
+  weightUnit: {
+    type: String,
+    enum: ['g', 'kg'],
+    default: 'kg',
+  },
+}, { _id: false })
+
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -53,12 +71,8 @@ const productSchema = new mongoose.Schema({
   reviews: [reviewSchema],
   isFeatured: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
-  weight: { type: Number }, // in grams
-  dimensions: {
-    length: Number,
-    breadth: Number,
-    height: Number,
-  },
+  weight: { type: Number, min: 0 }, // legacy field for older products
+  dimensions: { type: dimensionsSchema, default: null },
   sku: { type: String, unique: true, sparse: true },
   tags: [String],
   hsnCode: {
@@ -78,6 +92,38 @@ const productSchema = new mongoose.Schema({
     enum: [0, 3, 5, 12, 18, 28],
   },
 }, { timestamps: true })
+
+const normalizeProductForResponse = (doc, ret) => {
+  const raw = doc?._doc || {}
+  const dimensions = ret.dimensions || {}
+  const length = dimensions.length ?? null
+  const width = dimensions.width ?? dimensions.breadth ?? null
+  const height = dimensions.height ?? null
+  const dimensionUnit = dimensions.dimensionUnit || 'cm'
+  const legacyWeight = raw.weight ?? ret.weight
+  const weight = dimensions.weight ?? (legacyWeight !== undefined && legacyWeight !== null ? legacyWeight : null)
+  const weightUnit = dimensions.weightUnit || (legacyWeight !== undefined && legacyWeight !== null ? 'g' : 'kg')
+  const hasAny = [length, width, height, weight].some(value => value !== null && value !== undefined)
+
+  if (hasAny) {
+    ret.dimensions = {
+      length,
+      width,
+      height,
+      dimensionUnit,
+      weight,
+      weightUnit,
+    }
+  } else {
+    ret.dimensions = null
+  }
+
+  delete ret.weight
+  return ret
+}
+
+productSchema.set('toJSON', { virtuals: true, transform: normalizeProductForResponse })
+productSchema.set('toObject', { virtuals: true, transform: normalizeProductForResponse })
 
 // Auto-generate slug
 productSchema.pre('save', function (next) {

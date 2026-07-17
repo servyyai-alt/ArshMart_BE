@@ -8,6 +8,7 @@ import { sendOrderCancelledEmails } from '../utils/email.js'
 import Settings from '../models/Settings.js'
 import { sendWhatsAppOrderConfirmation, sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 import { getRazorpayKeys } from '../utils/razorpayClient.js'
+import { normalizeProductDimensions } from '../utils/productDimensions.js'
 
 const normalizeCode = (code) => String(code || '').trim().toUpperCase()
 
@@ -24,7 +25,7 @@ export const createOrder = asyncHandler(async (req, res) => {
   // Fetch all products in one query instead of one DB call per item.
   const productIds = [...new Set(orderItems.map((item) => String(item.product)))]
   const products = await Product.find({ _id: { $in: productIds } })
-    .select('_id name stock hsnCode')
+    .select('_id name stock hsnCode dimensions weight')
     .lean()
 
   const productMap = new Map(products.map((product) => [String(product._id), product]))
@@ -43,7 +44,11 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   const orderItemsWithHsn = orderItems.map((item) => {
     const product = productMap.get(String(item.product))
-    return { ...item, hsnCode: product?.hsnCode || '' }
+    return {
+      ...item,
+      hsnCode: product?.hsnCode || '',
+      dimensions: normalizeProductDimensions(product || {}) || null,
+    }
   })
 
   const safeItemsPrice = Number(itemsPrice) || 0

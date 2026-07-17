@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { formatProductDimensionsSummary } from './productDimensions.js'
 
 const boolFromEnv = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') return fallback
@@ -67,6 +68,13 @@ const renderOrderHtml = ({ appName, order, user, isAdmin }) => {
       <td style="padding:12px;border-bottom:1px solid #eef2f7;">
         <div style="font-weight:600;color:#0f172a;">${escapeHtml(item.name)}</div>
         <div style="color:#64748b;font-size:12px;margin-top:2px;">Qty: ${escapeHtml(item.quantity)} · Price: ${escapeHtml(formatMoney(item.price))}${item.hsnCode ? ` · HSN: ${escapeHtml(item.hsnCode)}` : ''}</div>
+        ${(() => {
+          const summary = formatProductDimensionsSummary(item)
+          const parts = []
+          if (summary.hasDimensions) parts.push(`Dimensions: ${escapeHtml(summary.dimensionsText)}`)
+          if (summary.hasWeight) parts.push(`Weight: ${escapeHtml(summary.weightText)}`)
+          return parts.length ? `<div style="color:#64748b;font-size:12px;margin-top:2px;">${parts.join(' · ')}</div>` : ''
+        })()}
       </td>
       <td style="padding:12px;border-bottom:1px solid #eef2f7;text-align:right;font-weight:600;color:#0f172a;">
         ${escapeHtml(formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0)))}
@@ -176,7 +184,12 @@ const renderOrderText = ({ appName, order, user, isAdmin }) => {
   lines.push(`Phone: ${addr.phone || user?.phone || ''}`)
   lines.push('Items:')
   for (const item of (order.orderItems || [])) {
-    lines.push(`- ${item.name} x${item.quantity} @ ${formatMoney(item.price)} = ${formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0))}${item.hsnCode ? ` (HSN: ${item.hsnCode})` : ''}`)
+    const summary = formatProductDimensionsSummary(item)
+    const dimensionParts = []
+    if (summary.hasDimensions) dimensionParts.push(`Dimensions: ${summary.dimensionsText}`)
+    if (summary.hasWeight) dimensionParts.push(`Weight: ${summary.weightText}`)
+    const dimensionText = dimensionParts.length ? ` | ${dimensionParts.join(' | ')}` : ''
+    lines.push(`- ${item.name} x${item.quantity} @ ${formatMoney(item.price)} = ${formatMoney((Number(item.price) || 0) * (Number(item.quantity) || 0))}${item.hsnCode ? ` (HSN: ${item.hsnCode})` : ''}${dimensionText}`)
   }
   lines.push(`Items: ${formatMoney(order.itemsPrice)} | Shipping: ${formatMoney(order.shippingPrice)} | Tax: ${formatMoney(order.taxPrice)} | Total: ${formatMoney(order.totalPrice)}`)
   return lines.join('\n')

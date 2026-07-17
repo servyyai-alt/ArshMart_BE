@@ -1,6 +1,7 @@
 import axios from 'axios'
 import Settings from '../models/Settings.js'
 import User from '../models/User.js'
+import { deriveParcelMetrics } from './productDimensions.js'
 
 const SHIPROCKET_BASE = 'https://apiv2.shiprocket.in/v1/external'
 
@@ -120,10 +121,7 @@ export const createShiprocketOrder = async (order) => {
     })),
     payment_method: order.paymentMethod === 'cod' ? 'COD' : 'Prepaid',
     sub_total: order.itemsPrice,
-    length: 10,
-    breadth: 10,
-    height: 10,
-    weight: 0.5,
+    ...deriveParcelMetrics(orderItems),
   }
 
   try {
@@ -283,10 +281,7 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     })),
     payment_method: 'Prepaid',
     sub_total: (items || []).reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0),
-    length: 10,
-    breadth: 10,
-    height: 10,
-    weight: 0.5,
+    ...deriveParcelMetrics(order?.orderItems || items || []),
     return_reason: (() => {
       const validReasons = [
         'bought by mistake',

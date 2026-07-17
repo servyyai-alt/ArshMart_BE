@@ -7,6 +7,7 @@ import { syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import GalleryImage from '../models/GalleryImage.js'
 import cloudinary from '../config/cloudinary.js'
 import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
+import { normalizeProductDimensionsInput } from '../utils/productDimensions.js'
 
 // ─── Products ─────────────────────────────────────────────
 const highlightItemToText = (item) => {
@@ -39,6 +40,21 @@ const normalizeProductPayload = (body = {}) => {
   const payload = { ...body }
   if ('highlights' in payload) {
     payload.highlights = normalizeHighlights(payload.highlights) || []
+  }
+  if ('dimensions' in payload || 'weight' in payload || 'dimensionUnit' in payload || 'weightUnit' in payload) {
+    const dimensions = normalizeProductDimensionsInput(payload)
+    payload.dimensions = dimensions
+    if (dimensions) {
+      payload.weight = dimensions.weight
+    } else {
+      delete payload.weight
+    }
+    delete payload.dimensionUnit
+    delete payload.weightUnit
+    delete payload.length
+    delete payload.width
+    delete payload.breadth
+    delete payload.height
   }
   return payload
 }

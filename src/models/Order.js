@@ -13,6 +13,14 @@ const orderSchema = new mongoose.Schema({
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
     hsnCode: { type: String, trim: true },
+    dimensions: {
+      length: { type: Number, min: 0 },
+      width: { type: Number, min: 0 },
+      height: { type: Number, min: 0 },
+      dimensionUnit: { type: String, default: 'cm' },
+      weight: { type: Number, min: 0 },
+      weightUnit: { type: String, default: 'kg' },
+    },
   }],
   shippingAddress: {
     fullName: { type: String, required: true },
