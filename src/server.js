@@ -27,6 +27,7 @@ import couponRoutes from './routes/couponRoutes.js'
 import checkoutRoutes from './routes/checkoutRoutes.js'
 import { startAbandonedCheckoutCron } from './utils/abandonedCheckoutCron.js'
 import { verifySmtpConnection } from './utils/email.js'
+import { startWhatsAppNotificationWorker } from './utils/whatsappNotifier.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -36,6 +37,7 @@ connectDB()
 
 if (process.env.NODE_ENV !== 'test' && !isVercel) {
   startAbandonedCheckoutCron()
+  startWhatsAppNotificationWorker()
   verifySmtpConnection()
 }
 

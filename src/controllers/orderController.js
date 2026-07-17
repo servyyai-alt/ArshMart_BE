@@ -128,15 +128,14 @@ export const createOrder = asyncHandler(async (req, res) => {
         console.error('COD order email send failed:', err.message)
        }
 
-      try {
-        await sendWhatsAppOrderConfirmation(order)
-        if (order.trackingNumber) {
-          await sendWhatsAppTrackingUpdate(order)
-        }
-      } catch (err) {
-        console.error('WhatsApp notification failed after COD order creation:', err.message)
-      }
     })
+
+    try {
+      await sendWhatsAppOrderConfirmation(order)
+      if (order.trackingNumber) await sendWhatsAppTrackingUpdate(order)
+    } catch (err) {
+      console.error('Unable to queue WhatsApp notification after COD order creation:', err.message)
+    }
   }
 
   res.status(201).json({ success: true, order })
