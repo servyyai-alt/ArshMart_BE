@@ -25,6 +25,7 @@ import userRoutes from './routes/userRoutes.js'
 import returnRoutes from './routes/returnRoutes.js'
 import couponRoutes from './routes/couponRoutes.js'
 import checkoutRoutes from './routes/checkoutRoutes.js'
+import internalWorkerRoutes from './routes/internalWorkerRoutes.js'
 import { startAbandonedCheckoutCron } from './utils/abandonedCheckoutCron.js'
 import { verifySmtpConnection } from './utils/email.js'
 import { startWhatsAppNotificationWorker } from './utils/whatsappNotifier.js'
@@ -98,6 +99,7 @@ app.use('/api/users', apiLimiter, userRoutes)
 app.use('/api/returns', apiLimiter, returnRoutes)
 app.use('/api/coupons', apiLimiter, couponRoutes)
 app.use('/api/checkouts', apiLimiter, checkoutRoutes)
+app.use('/api/internal', internalWorkerRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({

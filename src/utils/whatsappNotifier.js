@@ -6,6 +6,8 @@ const POLL_INTERVAL_MS = 5000
 const LOCK_DURATION_MS = 2 * 60 * 1000
 const REQUEST_TIMEOUT_MS = 30 * 1000
 const MAX_ATTEMPTS = 12
+const DEFAULT_BATCH_SIZE = 5
+const PERSISTENT_WORKER_BATCH_SIZE = 20
 let workerTimer = null
 let workerRunning = false
 
@@ -47,14 +49,29 @@ const buildPayload = (order) => {
 }
 
 const errorMessage = (err) => {
-  const apiDetail = err?.response?.data?.detail || err?.response?.data?.message
+  const detail = err?.response?.data?.detail
+  const apiDetail = (detail && typeof detail === 'object' ? detail.message : detail)
+    || err?.response?.data?.message
   return String(apiDetail || err?.message || 'WhatsApp notification failed').slice(0, 1000)
+}
+
+const permanentError = (message) => {
+  const error = new Error(message)
+  error.retryable = false
+  return error
+}
+
+const isRetryableError = (err) => {
+  if (err?.retryable === false) return false
+  const status = Number(err?.response?.status || 0)
+  if (!status) return true
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500
 }
 
 const postToWhatsAppService = async (path, payload) => {
   const config = getConfig()
-  if (!config) throw new Error('WHATSAPP_SERVICE_BASE_URL or WHATSAPP_INTERNAL_API_KEY is missing')
-  if (!payload.customerPhone) throw new Error('Customer phone is not a valid Indian WhatsApp number')
+  if (!config) throw permanentError('WHATSAPP_SERVICE_BASE_URL or WHATSAPP_INTERNAL_API_KEY is missing')
+  if (!payload.customerPhone) throw permanentError('Customer phone is not a valid Indian WhatsApp number')
 
   const { data } = await axios.post(`${config.baseURL}${path}`, payload, {
     headers: {
@@ -95,7 +112,7 @@ const enqueue = async (order, type) => {
     { upsert: true, new: true },
   )
 
-  void processWhatsAppQueue()
+  if (!process.env.VERCEL) void processWhatsAppQueue()
   return { queued: true, jobId: job._id }
 }
 
@@ -144,8 +161,9 @@ const processJob = async (job) => {
       { _id: job._id },
       { $set: { status: 'sent', sentAt: new Date(), lockedUntil: null, lastError: '' } },
     )
+    return 'sent'
   } catch (err) {
-    const terminal = job.attempts >= MAX_ATTEMPTS
+    const terminal = !isRetryableError(err) || job.attempts >= MAX_ATTEMPTS
     const delay = Math.min(60 * 60 * 1000, 5000 * (2 ** Math.max(0, job.attempts - 1)))
     const message = errorMessage(err)
     await WhatsAppNotification.updateOne(
@@ -164,29 +182,40 @@ const processJob = async (job) => {
       { $set: { 'notification.whatsappLastError': message } },
     )
     console.error(`WhatsApp ${job.type} attempt ${job.attempts} failed:`, message)
+    return terminal ? 'failed' : 'rescheduled'
   }
 }
 
-export const processWhatsAppQueue = async () => {
-  if (workerRunning) return
+export const processWhatsAppQueue = async ({ maxJobs = DEFAULT_BATCH_SIZE } = {}) => {
+  const safeLimit = Math.max(1, Math.min(Number(maxJobs) || DEFAULT_BATCH_SIZE, PERSISTENT_WORKER_BATCH_SIZE))
+  if (workerRunning) {
+    return { busy: true, processed: 0, sent: 0, rescheduled: 0, failed: 0 }
+  }
   workerRunning = true
+  const stats = { busy: false, processed: 0, sent: 0, rescheduled: 0, failed: 0 }
   try {
-    for (let count = 0; count < 20; count += 1) {
+    for (let count = 0; count < safeLimit; count += 1) {
       const job = await claimNextJob()
       if (!job) break
-      await processJob(job)
+      const outcome = await processJob(job)
+      stats.processed += 1
+      stats[outcome] += 1
     }
   } catch (err) {
     console.error('WhatsApp queue worker failed:', errorMessage(err))
   } finally {
     workerRunning = false
   }
+  return stats
 }
 
 export const startWhatsAppNotificationWorker = () => {
   if (workerTimer) return
-  void processWhatsAppQueue()
-  workerTimer = setInterval(() => void processWhatsAppQueue(), POLL_INTERVAL_MS)
+  void processWhatsAppQueue({ maxJobs: PERSISTENT_WORKER_BATCH_SIZE })
+  workerTimer = setInterval(
+    () => void processWhatsAppQueue({ maxJobs: PERSISTENT_WORKER_BATCH_SIZE }),
+    POLL_INTERVAL_MS,
+  )
   workerTimer.unref?.()
   console.log('WhatsApp notification worker started')
 }
