@@ -1,24 +1,50 @@
 import asyncHandler from 'express-async-handler'
 import User from '../models/User.js'
 import { sendMail } from '../utils/sendMail.js'
+import {
+  detectIdentifierType,
+  isValidEmail,
+  isValidPhone,
+  normalizeEmail,
+  normalizePhone,
+  sanitizeUser,
+} from '../utils/userHelpers.js'
 
 // @desc    Register user
 // @route   POST /api/auth/register
 export const register = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body
+  const { name, email, password, phone } = req.body
+  const normalizedEmail = normalizeEmail(email)
+  const normalizedPhone = normalizePhone(phone)
 
-  if (!name || !email || !password) {
+  if (!name || !normalizedEmail || !password || !normalizedPhone) {
     res.status(400)
-    throw new Error('Please provide name, email, and password')
+    throw new Error('Please provide name, email, phone, and password')
   }
 
-  const existingUser = await User.findOne({ email })
+  if (!isValidEmail(normalizedEmail)) {
+    res.status(400)
+    throw new Error('Please provide a valid email address')
+  }
+
+  if (!isValidPhone(normalizedPhone)) {
+    res.status(400)
+    throw new Error('Please provide a valid 10-digit Indian mobile number')
+  }
+
+  const existingUser = await User.findOne({
+    $or: [{ email: normalizedEmail }, { phone: normalizedPhone }],
+  })
   if (existingUser) {
+    if (existingUser.email === normalizedEmail) {
+      res.status(409)
+      throw new Error('Email already registered')
+    }
     res.status(409)
-    throw new Error('Email already registered')
+    throw new Error('Phone number already registered')
   }
 
-  const user = await User.create({ name, email, password })
+  const user = await User.create({ name, email: normalizedEmail, password, phone: normalizedPhone })
   const token = user.getJWT()
 
   res.status(201).json({
@@ -31,17 +57,28 @@ export const register = asyncHandler(async (req, res) => {
 // @desc    Login user
 // @route   POST /api/auth/login
 export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body
+  const { identifier, password } = req.body
 
-  if (!email || !password) {
+  if (!identifier || !password) {
     res.status(400)
-    throw new Error('Please provide email and password')
+    throw new Error('Please provide email/mobile and password')
   }
 
-  const user = await User.findOne({ email }).select('+password')
+  const detectedIdentifier = detectIdentifierType(identifier)
+  if (!detectedIdentifier?.value) {
+    res.status(400)
+    throw new Error('Please provide a valid email address or mobile number')
+  }
+
+  const user = await User.findOne(
+    detectedIdentifier.type === 'email'
+      ? { email: detectedIdentifier.value }
+      : { phone: detectedIdentifier.value }
+  ).select('+password')
+
   if (!user) {
     res.status(401)
-    throw new Error('Invalid email or password')
+    throw new Error('Invalid email/mobile or password')
   }
 
   if (user.isBlocked) {
@@ -52,7 +89,7 @@ export const login = asyncHandler(async (req, res) => {
   const isMatch = await user.comparePassword(password)
   if (!isMatch) {
     res.status(401)
-    throw new Error('Invalid email or password')
+    throw new Error('Invalid email/mobile or password')
   }
 
   const token = user.getJWT()
@@ -69,12 +106,56 @@ export const getMe = asyncHandler(async (req, res) => {
 // @desc    Update profile
 // @route   PUT /api/auth/profile
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { name, phone } = req.body
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    { name, phone },
-    { new: true, runValidators: true }
-  )
+  const { name, email, phone } = req.body
+  const user = await User.findById(req.user._id)
+  if (!user) {
+    res.status(404)
+    throw new Error('User not found')
+  }
+
+  if (typeof name === 'string' && name.trim()) {
+    user.name = name.trim()
+  }
+
+  if (typeof email === 'string' && email.trim()) {
+    const normalizedEmail = normalizeEmail(email)
+    if (!isValidEmail(normalizedEmail)) {
+      res.status(400)
+      throw new Error('Please provide a valid email address')
+    }
+
+    const existingEmailUser = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: user._id },
+    })
+    if (existingEmailUser) {
+      res.status(409)
+      throw new Error('Email already registered')
+    }
+
+    user.email = normalizedEmail
+  }
+
+  if (typeof phone === 'string' && phone.trim()) {
+    const normalizedPhone = normalizePhone(phone)
+    if (!isValidPhone(normalizedPhone)) {
+      res.status(400)
+      throw new Error('Please provide a valid 10-digit Indian mobile number')
+    }
+
+    const existingPhoneUser = await User.findOne({
+      phone: normalizedPhone,
+      _id: { $ne: user._id },
+    })
+    if (existingPhoneUser) {
+      res.status(409)
+      throw new Error('Phone number already registered')
+    }
+
+    user.phone = normalizedPhone
+  }
+
+  await user.save()
   res.json({ success: true, user: sanitizeUser(user) })
 })
 
@@ -100,13 +181,14 @@ export const changePassword = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/forgot-password
 export const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body
+  const normalizedEmail = normalizeEmail(email)
 
-  if (!email) {
+  if (!normalizedEmail) {
     res.status(400)
     throw new Error('Please provide your email')
   }
 
-  const user = await User.findOne({ email })
+  const user = await User.findOne({ email: normalizedEmail })
   if (!user) {
     res.status(404)
     throw new Error('No account found with that email')
@@ -138,13 +220,14 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/reset-password
 export const resetPassword = asyncHandler(async (req, res) => {
   const { email, otp, newPassword } = req.body
+  const normalizedEmail = normalizeEmail(email)
 
-  if (!email || !otp || !newPassword) {
+  if (!normalizedEmail || !otp || !newPassword) {
     res.status(400)
     throw new Error('Please provide email, OTP, and new password')
   }
 
-  const user = await User.findOne({ email }).select('+password')
+  const user = await User.findOne({ email: normalizedEmail }).select('+password')
   if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
     res.status(400)
     throw new Error('Invalid or expired OTP')
@@ -172,13 +255,14 @@ export const resetPassword = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/verify-reset-otp
 export const verifyResetOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body
+  const normalizedEmail = normalizeEmail(email)
 
-  if (!email || !otp) {
+  if (!normalizedEmail || !otp) {
     res.status(400)
     throw new Error('Please provide email and OTP')
   }
 
-  const user = await User.findOne({ email })
+  const user = await User.findOne({ email: normalizedEmail })
   if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
     res.status(400)
     throw new Error('Invalid or expired OTP')
@@ -195,15 +279,4 @@ export const verifyResetOtp = asyncHandler(async (req, res) => {
   }
 
   res.json({ success: true, message: 'OTP verified' })
-})
-
-const sanitizeUser = (user) => ({
-  _id: user._id,
-  name: user.name,
-  email: user.email,
-  phone: user.phone,
-  role: user.role,
-  avatar: user.avatar,
-  wishlist: user.wishlist || [],
-  createdAt: user.createdAt,
 })

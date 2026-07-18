@@ -22,7 +22,18 @@ const userSchema = new mongoose.Schema({
     minlength: [8, 'Password must be at least 8 characters'],
     select: false,
   },
-  phone: { type: String, trim: true },
+  phone: {
+    type: String,
+    required: [true, 'Phone number is required'],
+    unique: true,
+    trim: true,
+    validate: {
+      validator: function (v) {
+        return /^[6-9]\d{9}$/.test(v)
+      },
+      message: 'Please provide a valid 10-digit Indian mobile number',
+    },
+  },
   role: {
     type: String,
     enum: ['user', 'admin'],
