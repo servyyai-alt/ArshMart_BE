@@ -1,4 +1,13 @@
 import axios from 'axios'
+import Order from '../models/Order.js'
+import WhatsAppNotification from '../models/WhatsAppNotification.js'
+
+const POLL_INTERVAL_MS = 5000
+const LOCK_DURATION_MS = 2 * 60 * 1000
+const REQUEST_TIMEOUT_MS = 30 * 1000
+const MAX_ATTEMPTS = 12
+let workerTimer = null
+let workerRunning = false
 
 const normalizeIndianPhone = (phone) => {
   const digits = String(phone || '').replace(/\D/g, '')
@@ -18,25 +27,17 @@ const getPaymentStatus = (order) => {
 const getConfig = () => {
   const baseURL = String(process.env.WHATSAPP_SERVICE_BASE_URL || '').trim().replace(/\/+$/, '')
   const apiKey = String(process.env.WHATSAPP_INTERNAL_API_KEY || '').trim()
-
-  if (!baseURL || !apiKey) {
-    console.warn('WhatsApp notification skipped: WHATSAPP_SERVICE_BASE_URL or WHATSAPP_INTERNAL_API_KEY is missing')
-    return null
-  }
-
-  return { baseURL, apiKey }
+  return baseURL && apiKey ? { baseURL, apiKey } : null
 }
 
 const buildPayload = (order) => {
   const orderId = order?._id?.toString()
-  const customerPhone = normalizeIndianPhone(order?.shippingAddress?.phone)
   const frontendUrl = String(process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '')
-
   return {
     orderId,
     orderNumber: getOrderNumber(order),
     customerName: order?.shippingAddress?.fullName || '',
-    customerPhone,
+    customerPhone: normalizeIndianPhone(order?.shippingAddress?.phone),
     totalAmount: Number(order?.totalPrice || 0),
     paymentStatus: getPaymentStatus(order),
     trackingNumber: order?.trackingNumber || '',
@@ -45,95 +46,147 @@ const buildPayload = (order) => {
   }
 }
 
-const saveNotificationError = async (order, err) => {
-  if (!order?.save) return
-  try {
-    order.notification = {
-      ...(order.notification || {}),
-      whatsappLastError: err?.response?.data?.message || err?.message || 'WhatsApp notification failed',
-    }
-    await order.save()
-  } catch (saveErr) {
-    console.error('Failed to save WhatsApp notification error:', saveErr.message)
-  }
+const errorMessage = (err) => {
+  const apiDetail = err?.response?.data?.detail || err?.response?.data?.message
+  return String(apiDetail || err?.message || 'WhatsApp notification failed').slice(0, 1000)
 }
 
 const postToWhatsAppService = async (path, payload) => {
   const config = getConfig()
-  if (!config) return { skipped: true, reason: 'missing_config' }
-
-  if (!payload.customerPhone) {
-    console.warn(`WhatsApp notification skipped for order ${payload.orderId}: invalid customer phone`)
-    return { skipped: true, reason: 'invalid_phone' }
-  }
+  if (!config) throw new Error('WHATSAPP_SERVICE_BASE_URL or WHATSAPP_INTERNAL_API_KEY is missing')
+  if (!payload.customerPhone) throw new Error('Customer phone is not a valid Indian WhatsApp number')
 
   const { data } = await axios.post(`${config.baseURL}${path}`, payload, {
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    timeout: 10000,
+    timeout: REQUEST_TIMEOUT_MS,
   })
-
   return data
 }
 
-export const sendWhatsAppOrderConfirmation = async (order) => {
+const enqueue = async (order, type) => {
   if (!order?._id) return { skipped: true, reason: 'missing_order' }
-  if (order.notification?.whatsappOrderConfirmationSentAt) {
-    return { skipped: true, reason: 'already_sent' }
+  const trackingNumber = String(order.trackingNumber || '').trim()
+  if (type === 'tracking_update' && !trackingNumber) {
+    return { skipped: true, reason: 'missing_tracking_number' }
   }
 
-  const payload = buildPayload(order)
-  if (!payload.orderId || !payload.orderNumber) return { skipped: true, reason: 'missing_order_id' }
+  const alreadySent = type === 'order_confirmation'
+    ? order.notification?.whatsappOrderConfirmationSentAt
+    : order.notification?.whatsappTrackingUpdateSentAt
+      && order.notification?.whatsappTrackingNumber === trackingNumber
+  if (alreadySent) return { skipped: true, reason: 'already_sent' }
 
+  const suffix = type === 'tracking_update' ? `:${trackingNumber}` : ''
+  const deduplicationKey = `${type}:${order._id}${suffix}`
+  const job = await WhatsAppNotification.findOneAndUpdate(
+    { deduplicationKey },
+    {
+      $setOnInsert: {
+        order: order._id,
+        type,
+        deduplicationKey,
+        status: 'pending',
+        nextAttemptAt: new Date(),
+      },
+    },
+    { upsert: true, new: true },
+  )
+
+  void processWhatsAppQueue()
+  return { queued: true, jobId: job._id }
+}
+
+export const sendWhatsAppOrderConfirmation = (order) => enqueue(order, 'order_confirmation')
+export const sendWhatsAppTrackingUpdate = (order) => enqueue(order, 'tracking_update')
+
+const claimNextJob = () => {
+  const now = new Date()
+  return WhatsAppNotification.findOneAndUpdate(
+    {
+      status: { $in: ['pending', 'processing'] },
+      nextAttemptAt: { $lte: now },
+      $or: [{ lockedUntil: null }, { lockedUntil: { $lte: now } }],
+    },
+    {
+      $set: { status: 'processing', lockedUntil: new Date(Date.now() + LOCK_DURATION_MS) },
+      $inc: { attempts: 1 },
+    },
+    { new: true, sort: { nextAttemptAt: 1, createdAt: 1 } },
+  )
+}
+
+const markOrderSent = async (order, job) => {
+  const notification = { ...(order.notification?.toObject?.() || order.notification || {}), whatsappLastError: '' }
+  if (job.type === 'order_confirmation') notification.whatsappOrderConfirmationSentAt = new Date()
+  else {
+    notification.whatsappTrackingUpdateSentAt = new Date()
+    notification.whatsappTrackingNumber = String(order.trackingNumber || '').trim()
+  }
+  order.notification = notification
+  await order.save()
+}
+
+const processJob = async (job) => {
   try {
-    const result = await postToWhatsAppService('/internal/order-confirmation', payload)
-    if (!result?.skipped && order.save) {
-      order.notification = {
-        ...(order.notification || {}),
-        whatsappOrderConfirmationSentAt: new Date(),
-        whatsappLastError: '',
-      }
-      await order.save()
-    }
-    return result
+    const order = await Order.findById(job.order)
+    if (!order) throw new Error('Order no longer exists')
+
+    const payload = buildPayload(order)
+    const path = job.type === 'order_confirmation'
+      ? '/internal/order-confirmation'
+      : '/internal/tracking-update'
+    await postToWhatsAppService(path, payload)
+    await markOrderSent(order, job)
+    await WhatsAppNotification.updateOne(
+      { _id: job._id },
+      { $set: { status: 'sent', sentAt: new Date(), lockedUntil: null, lastError: '' } },
+    )
   } catch (err) {
-    console.error('WhatsApp order confirmation failed:', err.response?.data || err.message)
-    await saveNotificationError(order, err)
-    throw err
+    const terminal = job.attempts >= MAX_ATTEMPTS
+    const delay = Math.min(60 * 60 * 1000, 5000 * (2 ** Math.max(0, job.attempts - 1)))
+    const message = errorMessage(err)
+    await WhatsAppNotification.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: terminal ? 'failed' : 'pending',
+          nextAttemptAt: new Date(Date.now() + delay),
+          lockedUntil: null,
+          lastError: message,
+        },
+      },
+    )
+    await Order.updateOne(
+      { _id: job.order },
+      { $set: { 'notification.whatsappLastError': message } },
+    )
+    console.error(`WhatsApp ${job.type} attempt ${job.attempts} failed:`, message)
   }
 }
 
-export const sendWhatsAppTrackingUpdate = async (order) => {
-  if (!order?._id) return { skipped: true, reason: 'missing_order' }
-  const trackingNumber = String(order.trackingNumber || '').trim()
-  if (!trackingNumber) return { skipped: true, reason: 'missing_tracking_number' }
-  if (
-    order.notification?.whatsappTrackingUpdateSentAt
-    && order.notification?.whatsappTrackingNumber === trackingNumber
-  ) {
-    return { skipped: true, reason: 'already_sent' }
-  }
-
-  const payload = buildPayload(order)
-  if (!payload.orderId || !payload.orderNumber) return { skipped: true, reason: 'missing_order_id' }
-
+export const processWhatsAppQueue = async () => {
+  if (workerRunning) return
+  workerRunning = true
   try {
-    const result = await postToWhatsAppService('/internal/tracking-update', payload)
-    if (!result?.skipped && order.save) {
-      order.notification = {
-        ...(order.notification || {}),
-        whatsappTrackingUpdateSentAt: new Date(),
-        whatsappTrackingNumber: trackingNumber,
-        whatsappLastError: '',
-      }
-      await order.save()
+    for (let count = 0; count < 20; count += 1) {
+      const job = await claimNextJob()
+      if (!job) break
+      await processJob(job)
     }
-    return result
   } catch (err) {
-    console.error('WhatsApp tracking update failed:', err.response?.data || err.message)
-    await saveNotificationError(order, err)
-    throw err
+    console.error('WhatsApp queue worker failed:', errorMessage(err))
+  } finally {
+    workerRunning = false
   }
+}
+
+export const startWhatsAppNotificationWorker = () => {
+  if (workerTimer) return
+  void processWhatsAppQueue()
+  workerTimer = setInterval(() => void processWhatsAppQueue(), POLL_INTERVAL_MS)
+  workerTimer.unref?.()
+  console.log('WhatsApp notification worker started')
 }
