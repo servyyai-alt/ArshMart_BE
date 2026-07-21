@@ -101,6 +101,14 @@ app.use('/api/coupons', apiLimiter, couponRoutes)
 app.use('/api/checkouts', apiLimiter, checkoutRoutes)
 app.use('/api/internal', internalWorkerRoutes)
 
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Sandhaikart Backend API',
+    docs: '/api/health',
+  })
+})
+
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
