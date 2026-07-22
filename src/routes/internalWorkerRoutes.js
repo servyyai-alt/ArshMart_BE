@@ -31,7 +31,7 @@ router.post('/whatsapp/process-queue', async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' })
     }
 
-    const stats = await processWhatsAppQueue({ maxJobs: 10 })
+    const stats = await processWhatsAppQueue({ maxJobs: 1 })
     return res.json({ success: true, ...stats })
   } catch (err) {
     return next(err)
@@ -44,7 +44,7 @@ router.get('/cron/whatsapp', async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' })
     }
 
-    const stats = await processWhatsAppQueue({ maxJobs: 20 })
+    const stats = await processWhatsAppQueue({ maxJobs: 1 })
     return res.json({ success: true, ...stats })
   } catch (err) {
     return next(err)

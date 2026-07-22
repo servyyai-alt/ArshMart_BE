@@ -2,12 +2,12 @@ import axios from 'axios'
 import Order from '../models/Order.js'
 import WhatsAppNotification from '../models/WhatsAppNotification.js'
 
-const POLL_INTERVAL_MS = 5000
+const POLL_INTERVAL_MS = 60 * 1000
 const LOCK_DURATION_MS = 2 * 60 * 1000
 const REQUEST_TIMEOUT_MS = 30 * 1000
 const MAX_ATTEMPTS = 12
 const DEFAULT_BATCH_SIZE = 5
-const PERSISTENT_WORKER_BATCH_SIZE = 20
+const PERSISTENT_WORKER_BATCH_SIZE = 1
 let workerTimer = null
 let workerRunning = false
 
@@ -112,8 +112,6 @@ const enqueue = async (order, type) => {
     { upsert: true, new: true },
   )
 
-  // Drain immediately so order placement does not depend on a background tick.
-  await processWhatsAppQueue({ maxJobs: 1 })
   return { queued: true, jobId: job._id }
 }
 
@@ -210,13 +208,23 @@ export const processWhatsAppQueue = async ({ maxJobs = DEFAULT_BATCH_SIZE } = {}
   return stats
 }
 
+const scheduleNextWorkerRun = () => {
+  workerTimer = setTimeout(() => {
+    void (async () => {
+      try {
+        await processWhatsAppQueue({ maxJobs: PERSISTENT_WORKER_BATCH_SIZE })
+      } catch (err) {
+        console.error('WhatsApp notification worker tick failed:', errorMessage(err))
+      } finally {
+        scheduleNextWorkerRun()
+      }
+    })()
+  }, POLL_INTERVAL_MS)
+  workerTimer.unref?.()
+}
+
 export const startWhatsAppNotificationWorker = () => {
   if (workerTimer) return
-  void processWhatsAppQueue({ maxJobs: PERSISTENT_WORKER_BATCH_SIZE })
-  workerTimer = setInterval(
-    () => void processWhatsAppQueue({ maxJobs: PERSISTENT_WORKER_BATCH_SIZE }),
-    POLL_INTERVAL_MS,
-  )
-  workerTimer.unref?.()
-  console.log('WhatsApp notification worker started')
+  scheduleNextWorkerRun()
+  console.log('WhatsApp notification worker started (every 60 seconds)')
 }

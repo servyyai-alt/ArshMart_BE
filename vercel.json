@@ -15,11 +15,5 @@
       "src": "/(.*)",
       "dest": "src/server.js"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/internal/cron/whatsapp",
-      "schedule": "*/2 * * * *"
-    }
   ]
 }
