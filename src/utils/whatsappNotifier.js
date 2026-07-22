@@ -112,7 +112,8 @@ const enqueue = async (order, type) => {
     { upsert: true, new: true },
   )
 
-  if (!process.env.VERCEL) void processWhatsAppQueue()
+  // Drain immediately so order placement does not depend on a background tick.
+  await processWhatsAppQueue({ maxJobs: 1 })
   return { queued: true, jobId: job._id }
 }
 

@@ -6,10 +6,10 @@ secured worker endpoint.
 
 ## Environment variable
 
-Add this only in the backend Vercel project settings:
+Add this in the backend Vercel project settings:
 
 ```env
-WHATSAPP_QUEUE_CRON_SECRET=replace_with_a_random_secret_of_at_least_32_characters
+CRON_SECRET=replace_with_a_random_secret_of_at_least_32_characters
 ```
 
 Do not commit the real value. Generate one in PowerShell with:
@@ -26,7 +26,9 @@ Configure a scheduler such as cron-job.org:
 - Method: `POST`
 - URL: `https://YOUR-BACKEND.vercel.app/api/internal/whatsapp/process-queue`
 - Header name: `Authorization`
-- Header value: `Bearer YOUR_WHATSAPP_QUEUE_CRON_SECRET`
+- Header value: `Bearer YOUR_CRON_SECRET`
+
+If you also want to keep a custom alias for internal tooling, set `WHATSAPP_QUEUE_CRON_SECRET` to the same value.
 
 The endpoint processes one due job per call to stay within conservative free
 function limits. A successful response contains counts only and never returns

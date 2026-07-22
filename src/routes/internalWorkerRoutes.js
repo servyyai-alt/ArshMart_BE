@@ -11,19 +11,40 @@ const secretsMatch = (received, expected) => {
     && crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
 }
 
+const verifyCronAuth = (req) => {
+  const expected = String(process.env.WHATSAPP_QUEUE_CRON_SECRET || '').trim()
+  const vercelCronSecret = String(process.env.CRON_SECRET || '').trim()
+  const authorization = String(req.get('authorization') || '')
+  const received = authorization.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length).trim()
+    : ''
+
+  if (!received) return false
+  if (expected && secretsMatch(received, expected)) return true
+  if (vercelCronSecret && secretsMatch(received, vercelCronSecret)) return true
+  return false
+}
+
 router.post('/whatsapp/process-queue', async (req, res, next) => {
   try {
-    const expected = String(process.env.WHATSAPP_QUEUE_CRON_SECRET || '').trim()
-    const authorization = String(req.get('authorization') || '')
-    const received = authorization.startsWith('Bearer ')
-      ? authorization.slice('Bearer '.length).trim()
-      : ''
-
-    if (!expected || !received || !secretsMatch(received, expected)) {
+    if (!verifyCronAuth(req)) {
       return res.status(401).json({ success: false, message: 'Unauthorized' })
     }
 
-    const stats = await processWhatsAppQueue({ maxJobs: 1 })
+    const stats = await processWhatsAppQueue({ maxJobs: 10 })
+    return res.json({ success: true, ...stats })
+  } catch (err) {
+    return next(err)
+  }
+})
+
+router.get('/cron/whatsapp', async (req, res, next) => {
+  try {
+    if (!verifyCronAuth(req)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' })
+    }
+
+    const stats = await processWhatsAppQueue({ maxJobs: 20 })
     return res.json({ success: true, ...stats })
   } catch (err) {
     return next(err)

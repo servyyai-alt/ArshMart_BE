@@ -112,7 +112,8 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
-  // Run notification work after the order exists, but do not block the API response.
+  // Run notification work after the order exists; the queue helper now drains
+  // immediately when possible so we do not depend on a background tick.
   if (paymentMethod === 'cod') {
     setImmediate(async () => {
       try {
