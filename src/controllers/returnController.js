@@ -8,6 +8,8 @@ import { sendReturnStatusEmails, sendRefundStatusEmails } from '../utils/returnE
 
 const RETURN_WINDOW_DAYS = Number(process.env.RETURN_WINDOW_DAYS || 7)
 
+const isValidUpiId = (upiId) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/.test(upiId)
+
 const calcExpiry = (deliveredAt, days) => {
   const d = new Date(deliveredAt)
   d.setDate(d.getDate() + Number(days || 0))
@@ -115,6 +117,10 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
     if (!upiId) {
       res.status(400)
       throw new Error('UPI ID is required for UPI refund method')
+    }
+    if (!isValidUpiId(upiId)) {
+      res.status(400)
+      throw new Error('Invalid UPI ID format. Example: name@oksbi')
     }
     sanitizedRefundDetails = {
       method: 'upi',
