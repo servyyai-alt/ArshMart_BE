@@ -17,7 +17,7 @@ const getMailConfig = () => {
   const pass = process.env.SMTP_PASS || ''
   const from = process.env.SMTP_FROM || process.env.ADMIN_EMAIL || user
   const adminEmail = process.env.ADMIN_EMAIL || ''
-  const appName = process.env.APP_NAME || 'Sandhaikart'
+  const appName = process.env.APP_NAME || 'Arsh Mart'
 
   return { host, port, secure, user, pass, from, adminEmail, appName }
 }
@@ -227,7 +227,7 @@ export const sendOrderEmails = async ({ order, user }) => {
     }
   }
 
-  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@sandhaikart.com')) ? cfg.user : cfg.adminEmail
+  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@arshmart.com')) ? cfg.user : cfg.adminEmail
 
   if (adminRecipient) {
     try {
@@ -345,7 +345,7 @@ export const sendOrderCancelledEmails = async ({ order, user, reason }) => {
     }
   }
 
-  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@sandhaikart.com')) ? cfg.user : cfg.adminEmail
+  const adminRecipient = (!cfg.adminEmail || cfg.adminEmail.endsWith('@arshmart.com')) ? cfg.user : cfg.adminEmail
 
   if (adminRecipient) {
     try {

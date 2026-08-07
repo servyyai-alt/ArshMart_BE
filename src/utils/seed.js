@@ -5,7 +5,7 @@ import User from '../models/User.js'
 import Product from '../models/Product.js'
 import Category from '../models/Category.js'
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sandhaikart'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/arshmart'
 
 const slugify = (value) =>
   String(value || '')
@@ -139,7 +139,7 @@ const seed = async () => {
     const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 12)
     const admin = await User.create({
       name: 'Admin',
-      email: process.env.ADMIN_EMAIL || 'admin@sandhaikart.com',
+      email: process.env.ADMIN_EMAIL || 'admin@arshmart.com',
       password: adminPassword,
       role: 'admin',
     })
@@ -149,11 +149,11 @@ const seed = async () => {
     const userPassword = await bcrypt.hash('User@123', 12)
     await User.create({
       name: 'Test User',
-      email: 'user@sandhaikart.com',
+      email: 'user@arshmart.com',
       password: userPassword,
       role: 'user',
     })
-    console.log('👤 Sample user created: user@sandhaikart.com')
+    console.log('👤 Sample user created: user@arshmart.com')
 
     // Create categories
     const createdCategories = await Category.insertMany(categories)
@@ -170,10 +170,10 @@ const seed = async () => {
 
     console.log('\n🎉 Database seeded successfully!\n')
     console.log('Admin credentials:')
-    console.log(`  Email   : ${process.env.ADMIN_EMAIL || 'admin@sandhaikart.com'}`)
+    console.log(`  Email   : ${process.env.ADMIN_EMAIL || 'admin@arshmart.com'}`)
     console.log(`  Password: ${process.env.ADMIN_PASSWORD || 'Admin@123'}`)
     console.log('\nSample user:')
-    console.log('  Email   : user@sandhaikart.com')
+    console.log('  Email   : user@arshmart.com')
     console.log('  Password: User@123')
 
     process.exit(0)

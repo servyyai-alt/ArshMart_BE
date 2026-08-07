@@ -94,7 +94,7 @@ export const createShiprocketOrder = async (order) => {
     const userDoc = await User.findById(order.user).select('email').lean()
     billingEmail = userDoc?.email || ''
   }
-  if (!billingEmail) billingEmail = process.env.ADMIN_EMAIL || 'support@sandhaikart.com'
+  if (!billingEmail) billingEmail = process.env.ADMIN_EMAIL || 'support@arshmart.com'
 
   const payload = {
     order_id: order._id.toString(),
@@ -260,9 +260,9 @@ export const createShiprocketReturnOrder = async ({ order, returnRequest, items 
     pickup_state: addr.state,
     pickup_country: addr.country || 'India',
     pickup_pincode: pickupPincode,
-    pickup_email: order.user?.email || process.env.ADMIN_EMAIL || 'support@sandhaikart.com',
+    pickup_email: order.user?.email || process.env.ADMIN_EMAIL || 'support@arshmart.com',
     pickup_phone: pickupPhone,
-    shipping_customer_name: warehouse.name || 'Sandhaikart Warehouse',
+    shipping_customer_name: warehouse.name || 'Arsh Mart Warehouse',
     shipping_last_name: '',
     shipping_address: warehouse.addressLine1,
     shipping_address_2: warehouse.addressLine2 || '',

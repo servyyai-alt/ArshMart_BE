@@ -54,8 +54,8 @@ app.use(cors({
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://sandhaikart.com',
-    'https://www.sandhaikart.com',
+    'https://arshmart.com',
+    'https://www.arshmart.com',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -104,7 +104,7 @@ app.use('/api/internal', internalWorkerRoutes)
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Sandhaikart Backend API',
+    message: 'Arsh Mart Backend API',
     docs: '/api/health',
   })
 })
@@ -112,7 +112,7 @@ app.get('/', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Sandhaikart API is running',
+    message: 'Arsh Mart API is running',
     version: '1.0.0',
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
@@ -145,7 +145,7 @@ if (!isVercel) {
   app.listen(PORT, () => {
     console.log(`
   ========================================
-  Sandhaikart API Server
+  Arsh Mart API Server
 
   Port    : ${PORT}
   Mode    : ${(process.env.NODE_ENV || 'development').padEnd(12)}
