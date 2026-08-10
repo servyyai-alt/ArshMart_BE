@@ -1,11 +1,13 @@
 export const notFound = (req, res, next) => {
   const error = new Error(`Route not found: ${req.originalUrl}`)
+  error.statusCode = 404
   res.status(404)
   next(error)
 }
 
 export const errorHandler = (err, req, res, next) => {
-  let statusCode = res.statusCode === 200 ? 500 : res.statusCode
+  const incomingStatus = Number(err.statusCode || res.statusCode)
+  let statusCode = incomingStatus >= 400 ? incomingStatus : 500
   let message = err.message || 'Internal Server Error'
 
   // Mongoose Validation Error

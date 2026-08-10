@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import asyncHandler from 'express-async-handler'
 import User from '../models/User.js'
+import { createHttpError } from '../utils/httpError.js'
 
 export const protect = asyncHandler(async (req, res, next) => {
   let token
@@ -10,8 +11,7 @@ export const protect = asyncHandler(async (req, res, next) => {
   }
 
   if (!token) {
-    res.status(401)
-    throw new Error('Not authenticated. Please log in.')
+    throw createHttpError(401, 'Not authenticated. Please log in.')
   }
 
   try {
@@ -19,25 +19,21 @@ export const protect = asyncHandler(async (req, res, next) => {
     const user = await User.findById(decoded.id).select('-password')
 
     if (!user) {
-      res.status(401)
-      throw new Error('User not found')
+      throw createHttpError(401, 'User not found')
     }
 
     if (user.isBlocked) {
-      res.status(403)
-      throw new Error('Your account has been blocked')
+      throw createHttpError(403, 'Your account has been blocked')
     }
 
     req.user = user
     next()
   } catch (err) {
     if (err.name === 'JsonWebTokenError') {
-      res.status(401)
-      throw new Error('Invalid token')
+      throw createHttpError(401, 'Invalid token')
     }
     if (err.name === 'TokenExpiredError') {
-      res.status(401)
-      throw new Error('Token expired. Please log in again.')
+      throw createHttpError(401, 'Token expired. Please log in again.')
     }
     throw err
   }
@@ -45,8 +41,7 @@ export const protect = asyncHandler(async (req, res, next) => {
 
 export const adminOnly = (req, res, next) => {
   if (req.user?.role !== 'admin') {
-    res.status(403)
-    throw new Error('Admin access required')
+    throw createHttpError(403, 'Admin access required')
   }
   next()
 }

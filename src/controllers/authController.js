@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import User from '../models/User.js'
 import { sendMail } from '../utils/sendMail.js'
+import { createHttpError } from '../utils/httpError.js'
 import {
   detectIdentifierType,
   isValidEmail,
@@ -18,18 +19,15 @@ export const register = asyncHandler(async (req, res) => {
   const normalizedPhone = normalizePhone(phone)
 
   if (!name || !normalizedEmail || !password || !normalizedPhone) {
-    res.status(400)
-    throw new Error('Please provide name, email, phone, and password')
+    throw createHttpError(400, 'Please provide name, email, phone, and password')
   }
 
   if (!isValidEmail(normalizedEmail)) {
-    res.status(400)
-    throw new Error('Please provide a valid email address')
+    throw createHttpError(400, 'Please provide a valid email address')
   }
 
   if (!isValidPhone(normalizedPhone)) {
-    res.status(400)
-    throw new Error('Please provide a valid 10-digit Indian mobile number')
+    throw createHttpError(400, 'Please provide a valid 10-digit Indian mobile number')
   }
 
   const existingUser = await User.findOne({
@@ -37,11 +35,9 @@ export const register = asyncHandler(async (req, res) => {
   })
   if (existingUser) {
     if (existingUser.email === normalizedEmail) {
-      res.status(409)
-      throw new Error('Email already registered')
+      throw createHttpError(409, 'Email already registered')
     }
-    res.status(409)
-    throw new Error('Phone number already registered')
+    throw createHttpError(409, 'Phone number already registered')
   }
 
   const user = await User.create({ name, email: normalizedEmail, password, phone: normalizedPhone })
@@ -60,14 +56,12 @@ export const login = asyncHandler(async (req, res) => {
   const { identifier, password } = req.body
 
   if (!identifier || !password) {
-    res.status(400)
-    throw new Error('Please provide email/mobile and password')
+    throw createHttpError(400, 'Please provide email/mobile and password')
   }
 
   const detectedIdentifier = detectIdentifierType(identifier)
   if (!detectedIdentifier?.value) {
-    res.status(400)
-    throw new Error('Please provide a valid email address or mobile number')
+    throw createHttpError(400, 'Please provide a valid email address or mobile number')
   }
 
   const user = await User.findOne(
@@ -77,19 +71,16 @@ export const login = asyncHandler(async (req, res) => {
   ).select('+password')
 
   if (!user) {
-    res.status(401)
-    throw new Error('Invalid email/mobile or password')
+    throw createHttpError(401, 'Invalid email/mobile or password')
   }
 
   if (user.isBlocked) {
-    res.status(403)
-    throw new Error('Your account has been blocked. Contact support.')
+    throw createHttpError(403, 'Your account has been blocked. Contact support.')
   }
 
   const isMatch = await user.comparePassword(password)
   if (!isMatch) {
-    res.status(401)
-    throw new Error('Invalid email/mobile or password')
+    throw createHttpError(401, 'Invalid email/mobile or password')
   }
 
   const token = user.getJWT()
@@ -109,8 +100,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   const { name, email, phone } = req.body
   const user = await User.findById(req.user._id)
   if (!user) {
-    res.status(404)
-    throw new Error('User not found')
+    throw createHttpError(404, 'User not found')
   }
 
   if (typeof name === 'string' && name.trim()) {
@@ -120,8 +110,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   if (typeof email === 'string' && email.trim()) {
     const normalizedEmail = normalizeEmail(email)
     if (!isValidEmail(normalizedEmail)) {
-      res.status(400)
-      throw new Error('Please provide a valid email address')
+      throw createHttpError(400, 'Please provide a valid email address')
     }
 
     const existingEmailUser = await User.findOne({
@@ -129,8 +118,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
       _id: { $ne: user._id },
     })
     if (existingEmailUser) {
-      res.status(409)
-      throw new Error('Email already registered')
+      throw createHttpError(409, 'Email already registered')
     }
 
     user.email = normalizedEmail
@@ -139,8 +127,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   if (typeof phone === 'string' && phone.trim()) {
     const normalizedPhone = normalizePhone(phone)
     if (!isValidPhone(normalizedPhone)) {
-      res.status(400)
-      throw new Error('Please provide a valid 10-digit Indian mobile number')
+      throw createHttpError(400, 'Please provide a valid 10-digit Indian mobile number')
     }
 
     const existingPhoneUser = await User.findOne({
@@ -148,8 +135,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
       _id: { $ne: user._id },
     })
     if (existingPhoneUser) {
-      res.status(409)
-      throw new Error('Phone number already registered')
+      throw createHttpError(409, 'Phone number already registered')
     }
 
     user.phone = normalizedPhone
@@ -167,8 +153,7 @@ export const changePassword = asyncHandler(async (req, res) => {
 
   const isMatch = await user.comparePassword(currentPassword)
   if (!isMatch) {
-    res.status(400)
-    throw new Error('Current password is incorrect')
+    throw createHttpError(401, 'Current password is incorrect')
   }
 
   user.password = newPassword
@@ -184,14 +169,12 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const normalizedEmail = normalizeEmail(email)
 
   if (!normalizedEmail) {
-    res.status(400)
-    throw new Error('Please provide your email')
+    throw createHttpError(400, 'Please provide your email')
   }
 
   const user = await User.findOne({ email: normalizedEmail })
   if (!user) {
-    res.status(404)
-    throw new Error('No account found with that email')
+    throw createHttpError(404, 'No account found with that email')
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000))
@@ -223,24 +206,20 @@ export const resetPassword = asyncHandler(async (req, res) => {
   const normalizedEmail = normalizeEmail(email)
 
   if (!normalizedEmail || !otp || !newPassword) {
-    res.status(400)
-    throw new Error('Please provide email, OTP, and new password')
+    throw createHttpError(400, 'Please provide email, OTP, and new password')
   }
 
   const user = await User.findOne({ email: normalizedEmail }).select('+password')
   if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
-    res.status(400)
-    throw new Error('Invalid or expired OTP')
+    throw createHttpError(400, 'Invalid or expired OTP')
   }
 
   if (user.resetPasswordOtp !== String(otp)) {
-    res.status(400)
-    throw new Error('Invalid OTP')
+    throw createHttpError(400, 'Invalid OTP')
   }
 
   if (user.resetPasswordOtpExpire < new Date()) {
-    res.status(400)
-    throw new Error('OTP has expired')
+    throw createHttpError(400, 'OTP has expired')
   }
 
   user.password = newPassword
@@ -258,24 +237,20 @@ export const verifyResetOtp = asyncHandler(async (req, res) => {
   const normalizedEmail = normalizeEmail(email)
 
   if (!normalizedEmail || !otp) {
-    res.status(400)
-    throw new Error('Please provide email and OTP')
+    throw createHttpError(400, 'Please provide email and OTP')
   }
 
   const user = await User.findOne({ email: normalizedEmail })
   if (!user || !user.resetPasswordOtp || !user.resetPasswordOtpExpire) {
-    res.status(400)
-    throw new Error('Invalid or expired OTP')
+    throw createHttpError(400, 'Invalid or expired OTP')
   }
 
   if (user.resetPasswordOtp !== String(otp)) {
-    res.status(400)
-    throw new Error('Invalid OTP')
+    throw createHttpError(400, 'Invalid OTP')
   }
 
   if (user.resetPasswordOtpExpire < new Date()) {
-    res.status(400)
-    throw new Error('OTP has expired')
+    throw createHttpError(400, 'OTP has expired')
   }
 
   res.json({ success: true, message: 'OTP verified' })

@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler'
 import Category from '../models/Category.js'
 import Product from '../models/Product.js'
+import { createHttpError } from '../utils/httpError.js'
 
 // @desc    Get all categories with product counts
 // @route   GET /api/categories
@@ -28,8 +29,7 @@ export const getCategories = asyncHandler(async (req, res) => {
 export const getCategory = asyncHandler(async (req, res) => {
   const category = await Category.findById(req.params.id)
   if (!category) {
-    res.status(404)
-    throw new Error('Category not found')
+    throw createHttpError(404, 'Category not found')
   }
   res.json({ success: true, category })
 })

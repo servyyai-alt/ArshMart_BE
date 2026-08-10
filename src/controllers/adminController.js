@@ -8,6 +8,7 @@ import GalleryImage from '../models/GalleryImage.js'
 import cloudinary from '../config/cloudinary.js'
 import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
 import { normalizeProductDimensionsInput } from '../utils/productDimensions.js'
+import { createHttpError } from '../utils/httpError.js'
 
 // ─── Products ─────────────────────────────────────────────
 const highlightItemToText = (item) => {
@@ -80,13 +81,13 @@ export const adminCreateProduct = asyncHandler(async (req, res) => {
 
 export const adminUpdateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndUpdate(req.params.id, normalizeProductPayload(req.body), { new: true, runValidators: true })
-  if (!product) { res.status(404); throw new Error('Product not found') }
+  if (!product) { throw createHttpError(404, 'Product not found') }
   res.json({ success: true, product })
 })
 
 export const adminDeleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id)
-  if (!product) { res.status(404); throw new Error('Product not found') }
+  if (!product) { throw createHttpError(404, 'Product not found') }
 
   const imagePublicIds = (product.images || []).map(i => i?.public_id).filter(Boolean)
   const videoPublicIds = (product.videos || []).map(v => v?.public_id).filter(Boolean)
@@ -115,12 +116,15 @@ export const adminCreateCategory = asyncHandler(async (req, res) => {
 
 export const adminUpdateCategory = asyncHandler(async (req, res) => {
   const category = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true })
-  if (!category) { res.status(404); throw new Error('Category not found') }
+  if (!category) { throw createHttpError(404, 'Category not found') }
   res.json({ success: true, category })
 })
 
 export const adminDeleteCategory = asyncHandler(async (req, res) => {
-  await Category.findByIdAndDelete(req.params.id)
+  const category = await Category.findByIdAndDelete(req.params.id)
+  if (!category) {
+    throw createHttpError(404, 'Category not found')
+  }
   res.json({ success: true, message: 'Category deleted' })
 })
 
@@ -174,7 +178,7 @@ export const adminGetOrders = asyncHandler(async (req, res) => {
 export const adminUpdateOrder = asyncHandler(async (req, res) => {
   const { status, trackingNumber, courierName } = req.body
   const order = await Order.findById(req.params.id)
-  if (!order) { res.status(404); throw new Error('Order not found') }
+  if (!order) { throw createHttpError(404, 'Order not found') }
 
   if (status) order.orderStatus = status
   if (trackingNumber) order.trackingNumber = trackingNumber
@@ -205,7 +209,7 @@ export const adminGetUsers = asyncHandler(async (req, res) => {
 export const adminUpdateUser = asyncHandler(async (req, res) => {
   const { role, isBlocked } = req.body
   const user = await User.findByIdAndUpdate(req.params.id, { role, isBlocked }, { new: true })
-  if (!user) { res.status(404); throw new Error('User not found') }
+  if (!user) { throw createHttpError(404, 'User not found') }
   res.json({ success: true, user })
 })
 
@@ -283,8 +287,7 @@ export const adminGetGallery = asyncHandler(async (req, res) => {
 export const adminAddGallery = asyncHandler(async (req, res) => {
   const { images } = req.body
   if (!Array.isArray(images) || images.length === 0) {
-    res.status(400)
-    throw new Error('Images array is required')
+    throw createHttpError(400, 'Images array is required')
   }
 
   const docs = images
@@ -300,8 +303,7 @@ export const adminAddGallery = asyncHandler(async (req, res) => {
     }))
 
   if (docs.length === 0) {
-    res.status(400)
-    throw new Error('No valid images provided')
+    throw createHttpError(400, 'No valid images provided')
   }
 
   await GalleryImage.bulkWrite(
@@ -326,8 +328,7 @@ export const adminDeleteGallery = asyncHandler(async (req, res) => {
     { new: true }
   )
   if (!updated) {
-    res.status(404)
-    throw new Error('Gallery image not found')
+    throw createHttpError(404, 'Gallery image not found')
   }
   res.json({ success: true, message: 'Deleted' })
 })
