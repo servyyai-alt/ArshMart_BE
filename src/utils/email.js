@@ -32,19 +32,28 @@ const createTransporter = (cfg) => nodemailer.createTransport({
   auth: { user: cfg.user, pass: cfg.pass },
 })
 
+const describeSmtpError = (error) => {
+  const code = error?.responseCode || error?.code
+  if (code === 535 || code === 'EAUTH') {
+    return 'SMTP authentication failed. If you are using Gmail, use a Google App Password instead of your normal account password, and make sure 2-Step Verification is enabled.'
+  }
+
+  return error?.message || 'SMTP verification failed'
+}
+
 export const verifySmtpConnection = async () => {
   const cfg = getMailConfig()
   if (!isMailConfigured(cfg)) {
-    console.log("⚠️ SMTP is not configured completely in environment variables.");
-    return;
+    console.log('⚠️ SMTP is not configured completely in environment variables.')
+    return
   }
   try {
     const transporter = createTransporter(cfg)
-    console.log("Verifying SMTP connection...");
+    console.log('Verifying SMTP connection...')
     await transporter.verify()
-    console.log("✅ SMTP connection is verified successfully!");
+    console.log('✅ SMTP connection is verified successfully!')
   } catch (error) {
-    console.error("❌ SMTP Transporter verification failed:", error);
+    console.error(`❌ ${describeSmtpError(error)}`)
   }
 }
 

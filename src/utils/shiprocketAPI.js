@@ -48,12 +48,20 @@ const getToken = async () => {
     if (tokenCache.cacheKey === cacheKey) return tokenCache.token
   }
 
-  const res = await axios.post(`${SHIPROCKET_BASE}/auth/login`, { email, password })
+  try {
+    const res = await axios.post(`${SHIPROCKET_BASE}/auth/login`, { email, password })
 
-  tokenCache.token = res.data.token
-  tokenCache.expiresAt = Date.now() + 9 * 24 * 60 * 60 * 1000 // 9 days
-  tokenCache.cacheKey = cacheKey
-  return tokenCache.token
+    tokenCache.token = res.data.token
+    tokenCache.expiresAt = Date.now() + 9 * 24 * 60 * 60 * 1000 // 9 days
+    tokenCache.cacheKey = cacheKey
+    return tokenCache.token
+  } catch (err) {
+    const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message
+    const e = new Error(`Shiprocket authentication failed: ${apiMessage}`)
+    e.statusCode = err.response?.status && err.response.status < 500 ? err.response.status : 502
+    e.details = err.response?.data
+    throw e
+  }
 }
 
 const shiprocketClient = async () => {
@@ -163,22 +171,47 @@ export const getServiceability = async ({ pickupPincode, deliveryPincode, weight
 
   const envPincode = (process.env.RETURN_WAREHOUSE_PINCODE || '').replace(/\s+/g, '')
   const finalPickupPincode = (pickupPincode || '').replace(/\s+/g, '') || envPincode
+  const finalDeliveryPincode = String(deliveryPincode || '').replace(/\s+/g, '')
+  const numericWeight = Number(weight)
 
   if (!finalPickupPincode) {
     const err = new Error('Pickup pincode is required for serviceability check')
     err.statusCode = 400
     throw err
   }
+  if (!/^\d{6}$/.test(finalPickupPincode)) {
+    const err = new Error(`Pickup pincode must be exactly 6 digits. Invalid pincode: "${finalPickupPincode}"`)
+    err.statusCode = 400
+    throw err
+  }
+  if (!/^\d{6}$/.test(finalDeliveryPincode)) {
+    const err = new Error(`Delivery pincode must be exactly 6 digits. Invalid pincode: "${deliveryPincode}"`)
+    err.statusCode = 400
+    throw err
+  }
+  if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
+    const err = new Error(`Weight must be a positive number. Invalid weight: "${weight}"`)
+    err.statusCode = 400
+    throw err
+  }
 
-  const res = await client.get('/courier/serviceability', {
-    params: {
-      pickup_postcode: finalPickupPincode,
-      delivery_postcode: deliveryPincode,
-      weight,
-      cod: 0,
-    },
-  })
-  return res.data
+  try {
+    const res = await client.get('/courier/serviceability', {
+      params: {
+        pickup_postcode: finalPickupPincode,
+        delivery_postcode: finalDeliveryPincode,
+        weight: numericWeight,
+        cod: 0,
+      },
+    })
+    return res.data
+  } catch (err) {
+    const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message
+    const e = new Error(`Shiprocket serviceability lookup failed: ${apiMessage}`)
+    e.statusCode = err.response?.status && err.response.status < 500 ? err.response.status : 502
+    e.details = err.response?.data
+    throw e
+  }
 }
 
 export const cancelShiprocketOrder = async (ids) => {
