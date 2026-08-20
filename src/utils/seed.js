@@ -350,7 +350,7 @@ const seed = async () => {
       name: 'Admin',
       email: process.env.ADMIN_EMAIL || 'admin@arshmart.com',
       password: adminPassword,
-      phone: '9629621359',
+      phone: '9342032250',
       role: 'admin',
     })
     console.log(`👤 Admin created: ${admin.email}`)

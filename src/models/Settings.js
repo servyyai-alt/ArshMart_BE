@@ -73,6 +73,18 @@ const settingsSchema = new mongoose.Schema(
         ],
         default: [],
       },
+      offerBanner: {
+        badge: { type: String, trim: true, default: 'Deal of the day' },
+        title: { type: String, trim: true, default: 'Up to 50% off' },
+        subtitle: { type: String, trim: true, default: 'today only' },
+        description: { type: String, trim: true, default: 'Handpicked favourites at unbeatable prices. Grab yours before the deal ends.' },
+        ctaLabel: { type: String, trim: true, default: 'Grab the deal' },
+        ctaLink: { type: String, trim: true, default: '/products?sort=discount' },
+        image: {
+          url: { type: String, trim: true, default: '' },
+          publicId: { type: String, trim: true, default: '' },
+        },
+      },
     },
 
     integrations: {

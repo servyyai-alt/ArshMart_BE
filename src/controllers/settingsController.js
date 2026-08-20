@@ -86,6 +86,17 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
       .filter((x) => Boolean(x.image?.url))
       .slice(0, 2)
   }
+  if (payload.offerBanner !== undefined && payload.offerBanner !== null) {
+    const offer = payload.offerBanner || {}
+    update['homepage.offerBanner.badge'] = String(offer.badge || '').trim() || 'Deal of the day'
+    update['homepage.offerBanner.title'] = String(offer.title || '').trim() || 'Up to 50% off'
+    update['homepage.offerBanner.subtitle'] = String(offer.subtitle || '').trim() || 'today only'
+    update['homepage.offerBanner.description'] = String(offer.description || '').trim() || 'Handpicked favourites at unbeatable prices. Grab yours before the deal ends.'
+    update['homepage.offerBanner.ctaLabel'] = String(offer.ctaLabel || '').trim() || 'Grab the deal'
+    update['homepage.offerBanner.ctaLink'] = String(offer.ctaLink || '').trim() || '/products?sort=discount'
+    update['homepage.offerBanner.image.url'] = String(offer.image?.url || offer.imageUrl || '').trim()
+    update['homepage.offerBanner.image.publicId'] = String(offer.image?.publicId || offer.imagePublicId || offer.image?.public_id || '').trim()
+  }
 
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
   if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
