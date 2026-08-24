@@ -2,7 +2,6 @@ import asyncHandler from 'express-async-handler'
 import ReturnRequest from '../models/ReturnRequest.js'
 import Order from '../models/Order.js'
 import User from '../models/User.js'
-import { getReturnServiceability, createShiprocketReturnOrder, trackOrder } from '../utils/shiprocketAPI.js'
 import { getRazorpayKeys } from '../utils/razorpayClient.js'
 import { sendReturnStatusEmails, sendRefundStatusEmails } from '../utils/returnEmail.js'
 
@@ -166,53 +165,7 @@ export const createReturnRequest = asyncHandler(async (req, res) => {
     audit: [{ by: req.user._id, action: 'requested', meta: { reason: String(reason || '') } }],
   })
 
-  // Shiprocket: serviceability + create return (best-effort but will fail request if not serviceable)
-  try {
-    if (!process.env.RETURN_WAREHOUSE_PINCODE) {
-      res.status(500)
-      throw new Error('Return warehouse pincode not configured (RETURN_WAREHOUSE_PINCODE)')
-    }
-    const serviceability = await getReturnServiceability({
-      pickupPincode: order.shippingAddress?.pincode,
-      deliveryPincode: process.env.RETURN_WAREHOUSE_PINCODE,
-      weight: 0.5,
-    })
-
-    rr.shiprocket = { ...(rr.shiprocket || {}), serviceability }
-
-    // Create return order
-    const sr = await createShiprocketReturnOrder({ order, returnRequest: rr, items: returnItems })
-    
-    const returnOrderId = sr?.order_id || sr?.return_order_id || sr?.orderId || sr?.data?.order_id
-    const shipmentId = sr?.shipment_id || sr?.data?.shipment_id
-    const awb = sr?.awb_code || sr?.awb || sr?.data?.awb_code
-    const courierName = sr?.courier_name || sr?.courier || sr?.data?.courier_name
-
-    rr.shiprocket = {
-      ...(rr.shiprocket || {}),
-      createResponse: sr,
-      returnOrderId,
-      shipmentId,
-      awb,
-      courierName,
-      pickupScheduledAt: new Date(),
-    }
-
-    if (returnOrderId || shipmentId || awb) {
-      rr.status = 'pickup_scheduled'
-      rr.audit.push({ by: req.user._id, action: 'pickup_scheduled', meta: { returnOrderId, shipmentId, awb } })
-    } else {
-      rr.audit.push({ by: req.user._id, action: 'shiprocket_return_created', meta: { note: 'No identifiers returned', sr } })
-    }
-    await rr.save()
-
-  } catch (err) {
-    // Rollback created ReturnRequest to prevent database inconsistency and 409 duplicate key conflict on subsequent attempts
-    await ReturnRequest.deleteOne({ _id: rr._id })
-    const details = err.details ? ` Details: ${JSON.stringify(err.details)}` : ''
-    res.status(err.statusCode || 500)
-    throw new Error(`${err.message}${details}`)
-  }
+  await rr.save()
 
   // Update order summary
   order.return = {
@@ -256,27 +209,6 @@ export const getReturnById = asyncHandler(async (req, res) => {
     throw new Error('Not authorized')
   }
   res.json({ success: true, returnRequest: rr })
-})
-
-// @desc    Track return AWB
-// @route   GET /api/returns/:id/track
-export const trackMyReturn = asyncHandler(async (req, res) => {
-  const rr = await ReturnRequest.findById(req.params.id).populate('order')
-  if (!rr) {
-    res.status(404)
-    throw new Error('Return request not found')
-  }
-  const isOwner = String(rr.user) === String(req.user._id)
-  if (!isOwner && req.user.role !== 'admin') {
-    res.status(403)
-    throw new Error('Not authorized')
-  }
-  if (!rr.shiprocket?.awb) {
-    res.status(400)
-    throw new Error('AWB not available yet')
-  }
-  const tracking = await trackOrder(rr.shiprocket.awb)
-  res.json({ success: true, tracking })
 })
 
 // ─── Admin APIs ────────────────────────────────────────────

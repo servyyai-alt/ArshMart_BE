@@ -2,7 +2,6 @@ import asyncHandler from 'express-async-handler'
 import crypto from 'crypto'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
-import { syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { getRazorpayKeys } from '../utils/razorpayClient.js'
@@ -92,24 +91,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   await order.save()
 
-  let shiprocket = null
-  let shiprocketError = null
-  if (!order.shiprocketOrderId) {
-    try {
-      const srData = await syncShiprocketOrder(order)
-      shiprocket = {
-        order_id: srData?.order_id,
-        shipment_id: srData?.shipment_id,
-        awb_code: srData?.awb_code,
-        courier_name: srData?.courier_name,
-      }
-    } catch (err) {
-      shiprocketError = err.message
-      // Keep payment successful even if shipping setup fails.
-      console.error('Shiprocket create order failed after payment:', err.message)
-    }
-  }
-
   // Send emails (best-effort; do not fail payment success if email fails)
   if (!order.notification?.userEmailSentAt || !order.notification?.adminEmailSentAt) {
     try {
@@ -135,7 +116,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     console.error('WhatsApp notification failed after payment verification:', err.message)
   }
 
-  res.json({ success: true, message: 'Payment verified successfully', order, shiprocket, shiprocketError })
+  res.json({ success: true, message: 'Payment verified successfully', order })
 })
 
 // @desc    Get Razorpay public key (key_id)

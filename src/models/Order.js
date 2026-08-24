@@ -70,9 +70,6 @@ const orderSchema = new mongoose.Schema({
     ],
     default: 'pending',
   },
-  // Shiprocket fields
-  shiprocketOrderId: String,
-  shiprocketShipmentId: String,
   trackingNumber: String,
   courierName: String,
   estimatedDelivery: Date,

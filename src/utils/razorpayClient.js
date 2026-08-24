@@ -26,4 +26,3 @@ export const getRazorpayKeys = async () => {
 
   return { keyId, keySecret, client }
 }
-

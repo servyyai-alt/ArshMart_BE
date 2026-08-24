@@ -99,17 +99,12 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
   }
 
   if (payload.razorpayKeyId !== undefined) update['integrations.razorpay.keyId'] = String(payload.razorpayKeyId || '')
-  if (payload.shiprocketEmail !== undefined) update['integrations.shiprocket.email'] = String(payload.shiprocketEmail || '')
-  if (payload.shiprocketPickupLocation !== undefined) update['integrations.shiprocket.pickupLocation'] = String(payload.shiprocketPickupLocation || '')
   if (payload.cloudinaryCloudName !== undefined) update['integrations.cloudinary.cloudName'] = String(payload.cloudinaryCloudName || '')
   if (payload.cloudinaryApiKey !== undefined) update['integrations.cloudinary.apiKey'] = String(payload.cloudinaryApiKey || '')
 
   // Secrets: only update when non-empty string is provided (prevents accidental wipe).
   if (typeof payload.razorpayKeySecret === 'string' && payload.razorpayKeySecret.trim() !== '') {
     update['integrations.razorpay.keySecret'] = payload.razorpayKeySecret.trim()
-  }
-  if (typeof payload.shiprocketPassword === 'string' && payload.shiprocketPassword.trim() !== '') {
-    update['integrations.shiprocket.password'] = payload.shiprocketPassword
   }
   if (typeof payload.cloudinaryApiSecret === 'string' && payload.cloudinaryApiSecret.trim() !== '') {
     update['integrations.cloudinary.apiSecret'] = payload.cloudinaryApiSecret.trim()
@@ -121,17 +116,15 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
 const sanitizeForAdmin = (doc) => {
   const settings = doc.toObject({ virtuals: false })
   const hasRazorpayKeySecret = Boolean(settings.integrations?.razorpay?.keySecret)
-  const hasShiprocketPassword = Boolean(settings.integrations?.shiprocket?.password)
   const hasCloudinaryApiSecret = Boolean(settings.integrations?.cloudinary?.apiSecret)
 
   // Never send secrets back to the client (even for admin UI).
   if (settings.integrations?.razorpay) settings.integrations.razorpay.keySecret = ''
-  if (settings.integrations?.shiprocket) settings.integrations.shiprocket.password = ''
   if (settings.integrations?.cloudinary) settings.integrations.cloudinary.apiSecret = ''
 
   return {
     ...settings,
-    secrets: { hasRazorpayKeySecret, hasShiprocketPassword, hasCloudinaryApiSecret },
+    secrets: { hasRazorpayKeySecret, hasCloudinaryApiSecret },
   }
 }
 

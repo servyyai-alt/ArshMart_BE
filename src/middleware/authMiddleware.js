@@ -14,6 +14,10 @@ export const protect = asyncHandler(async (req, res, next) => {
     throw createHttpError(401, 'Not authenticated. Please log in.')
   }
 
+  if (!process.env.JWT_SECRET) {
+    throw createHttpError(500, 'JWT secret not configured on the server')
+  }
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findById(decoded.id).select('-password')

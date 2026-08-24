@@ -1,7 +1,6 @@
 import asyncHandler from 'express-async-handler'
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
-import { cancelShiprocketOrder, syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import User from '../models/User.js'
 import { sendOrderEmails } from '../utils/email.js'
 import { sendOrderCancelledEmails } from '../utils/email.js'
@@ -95,15 +94,6 @@ export const createOrder = asyncHandler(async (req, res) => {
     coupon,
   })
 
-  // Push COD orders to Shiprocket immediately so they appear in the dashboard right away.
-  if (paymentMethod === 'cod') {
-    try {
-      await syncShiprocketOrder(order)
-    } catch (err) {
-      console.error('Shiprocket create order failed after createOrder:', err.message)
-    }
-  }
-
   if (coupon?.code) {
     try {
       await User.findByIdAndUpdate(req.user._id, { $addToSet: { usedCoupons: coupon.code } })
@@ -194,14 +184,6 @@ export const payOrder = asyncHandler(async (req, res) => {
   }
 
   const updatedOrder = await order.save()
-  // Auto-create Shiprocket order after successful payment (best-effort).
-  if (!updatedOrder.shiprocketOrderId) {
-    try {
-      await syncShiprocketOrder(updatedOrder)
-    } catch (err) {
-      console.error('Shiprocket create order failed after payOrder:', err.message)
-    }
-  }
 
   // Send emails best-effort if not sent
   if (!updatedOrder.notification?.userEmailSentAt || !updatedOrder.notification?.adminEmailSentAt) {
@@ -321,15 +303,6 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   }
 
   let refund = null
-
-  // Best-effort Shiprocket cancellation (if an order id exists)
-  if (order.shiprocketOrderId) {
-    try {
-      await cancelShiprocketOrder([order.shiprocketOrderId])
-    } catch (err) {
-      console.error('Shiprocket cancel failed:', err.message)
-    }
-  }
 
   // Initiate Razorpay refund for prepaid orders.
   if (order.paymentMethod === 'razorpay' && order.isPaid) {

@@ -16,7 +16,6 @@ import productRoutes from './routes/productRoutes.js'
 import categoryRoutes from './routes/categoryRoutes.js'
 import orderRoutes from './routes/orderRoutes.js'
 import paymentRoutes from './routes/paymentRoutes.js'
-import shippingRoutes from './routes/shippingRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import settingsRoutes from './routes/settingsRoutes.js'
@@ -75,7 +74,6 @@ const apiLimiter = rateLimit({
 })
 
 app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }))
-app.use('/api/webhooks/shiprocket', express.json())
 app.use('/api/webhooks', webhookRoutes)
 
 app.use(express.json({ limit: '10mb' }))
@@ -90,7 +88,6 @@ app.use('/api/products', apiLimiter, productRoutes)
 app.use('/api/categories', apiLimiter, categoryRoutes)
 app.use('/api/orders', apiLimiter, orderRoutes)
 app.use('/api/payment', apiLimiter, paymentRoutes)
-app.use('/api/shipping', apiLimiter, shippingRoutes)
 app.use('/api/upload', apiLimiter, uploadRoutes)
 app.use('/api/admin', apiLimiter, adminRoutes)
 app.use('/api/settings', apiLimiter, settingsRoutes)

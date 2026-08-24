@@ -3,7 +3,6 @@ import User from '../models/User.js'
 import Product from '../models/Product.js'
 import Category from '../models/Category.js'
 import Order from '../models/Order.js'
-import { syncShiprocketOrder } from '../utils/shiprocketAPI.js'
 import GalleryImage from '../models/GalleryImage.js'
 import cloudinary from '../config/cloudinary.js'
 import { sendWhatsAppTrackingUpdate } from '../utils/whatsappNotifier.js'
@@ -183,11 +182,6 @@ export const adminUpdateOrder = asyncHandler(async (req, res) => {
   if (status) order.orderStatus = status
   if (trackingNumber) order.trackingNumber = trackingNumber
   if (courierName) order.courierName = courierName
-
-  // If shipped and no Shiprocket order yet, create one
-  if (status === 'shipped' && !order.shiprocketOrderId) {
-    await syncShiprocketOrder(order)
-  }
 
   const updated = await order.save()
   if (updated.trackingNumber) {

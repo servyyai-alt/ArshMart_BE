@@ -57,14 +57,12 @@ export const sendReturnApprovedEmail = async ({ returnRequest, order, user }) =>
   const to = user?.email
   if (!to) return
   const orderIdShort = order?._id?.toString()?.slice(-8)?.toUpperCase()
-  const awb = returnRequest?.shiprocket?.awb
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6">
       <h2>Return Approved</h2>
       <p>Dear ${user.name || 'Customer'},</p>
       <p>Your return request for Order <strong>#${orderIdShort}</strong> has been approved.</p>
       <p><strong>Status:</strong> Return approved / QC Passed</p>
-      ${awb ? `<p><strong>AWB (Tracking Number):</strong> ${awb}</p>` : ''}
       <p>Thanks,<br/>Arsh Mart</p>
     </div>
   `
@@ -148,13 +146,11 @@ export const sendReturnStatusEmails = async ({ returnRequest, order, user }) => 
       const to = user?.email
       if (to) {
         const orderIdShort = order?._id?.toString()?.slice(-8)?.toUpperCase()
-        const awb = returnRequest?.shiprocket?.awb
         const html = `
           <div style="font-family:Arial,sans-serif;line-height:1.6">
             <h2>Return Update</h2>
             <p><strong>Order:</strong> #${orderIdShort}</p>
             <p><strong>Status:</strong> ${status}</p>
-            ${awb ? `<p><strong>AWB:</strong> ${awb}</p>` : ''}
             <p><strong>Updated at:</strong> ${fmt(new Date())}</p>
             <p>Thanks,<br/>Arsh Mart</p>
           </div>

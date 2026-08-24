@@ -92,11 +92,6 @@ const settingsSchema = new mongoose.Schema(
         keyId: { type: String, trim: true, default: '' },
         keySecret: { type: String, trim: true, default: '' },
       },
-      shiprocket: {
-        email: { type: String, trim: true, lowercase: true, default: '' },
-        password: { type: String, default: '' },
-        pickupLocation: { type: String, trim: true, default: 'Primary' },
-      },
       cloudinary: {
         cloudName: { type: String, trim: true, default: '' },
         apiKey: { type: String, trim: true, default: '' },

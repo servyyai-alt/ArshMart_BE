@@ -57,15 +57,6 @@ const returnRequestSchema = new mongoose.Schema(
       pincode: String,
       country: String,
     },
-    shiprocket: {
-      serviceability: mongoose.Schema.Types.Mixed,
-      createResponse: mongoose.Schema.Types.Mixed,
-      returnOrderId: String,
-      shipmentId: String,
-      awb: String,
-      courierName: String,
-      pickupScheduledAt: Date,
-    },
     refund: {
       paymentId: String,
       refundId: String,
