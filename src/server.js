@@ -138,12 +138,14 @@ app.use(errorHandler)
 
 if (!isVercel) {
   const PORT = process.env.PORT || 5000
+  const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
 
-  app.listen(PORT, () => {
+  app.listen(PORT, HOST, () => {
     console.log(`
   ========================================
   Arsh Mart API Server
 
+  Host    : ${HOST}
   Port    : ${PORT}
   Mode    : ${(process.env.NODE_ENV || 'development').padEnd(12)}
   Health  : /api/health
