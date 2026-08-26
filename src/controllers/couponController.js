@@ -9,6 +9,7 @@ const getActiveCouponCode = async () => {
 }
 
 const normalizeCode = (code) => String(code || '').trim().toUpperCase()
+const FALLBACK_COUPON = 'WELCOME10'
 
 // @desc    Validate coupon for current user (one-time)
 // @route   POST /api/coupons/apply
@@ -21,11 +22,8 @@ export const applyCoupon = asyncHandler(async (req, res) => {
   }
 
   const active = normalizeCode(await getActiveCouponCode())
-  if (!active) {
-    res.status(400)
-    throw new Error('No active coupon configured')
-  }
-  if (code !== active) {
+  const isValid = code === FALLBACK_COUPON || (active && code === active)
+  if (!isValid) {
     res.status(400)
     throw new Error('Invalid coupon code')
   }
@@ -37,7 +35,12 @@ export const applyCoupon = asyncHandler(async (req, res) => {
     throw new Error('Coupon already used')
   }
 
+  try {
+    await User.findByIdAndUpdate(req.user._id, { $addToSet: { usedCoupons: code } })
+  } catch (err) {
+    console.error('Failed to mark coupon as used on apply:', err.message)
+  }
+
   // Fixed discount: 10% (requirement)
   res.json({ success: true, coupon: { code, percent: 10 } })
 })
-
