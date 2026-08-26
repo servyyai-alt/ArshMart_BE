@@ -86,12 +86,20 @@ const buildUpdateFromFlatPayload = (payload = {}) => {
       .filter((x) => Boolean(x.image?.url))
       .slice(0, 2)
   }
+  if (payload.offerBannerPrice !== undefined) {
+    update['homepage.offerBanner.price'] = normalizeNumber(payload.offerBannerPrice, null)
+  }
+  if (payload.offerBannerOriginalPrice !== undefined) {
+    update['homepage.offerBanner.originalPrice'] = normalizeNumber(payload.offerBannerOriginalPrice, null)
+  }
   if (payload.offerBanner !== undefined && payload.offerBanner !== null) {
     const offer = payload.offerBanner || {}
     update['homepage.offerBanner.badge'] = String(offer.badge || '').trim() || 'Deal of the day'
     update['homepage.offerBanner.title'] = String(offer.title || '').trim() || 'Up to 50% off'
     update['homepage.offerBanner.subtitle'] = String(offer.subtitle || '').trim() || 'today only'
     update['homepage.offerBanner.description'] = String(offer.description || '').trim() || 'Handpicked favourites at unbeatable prices. Grab yours before the deal ends.'
+    update['homepage.offerBanner.price'] = normalizeNumber(offer.price, null)
+    update['homepage.offerBanner.originalPrice'] = normalizeNumber(offer.originalPrice, null)
     update['homepage.offerBanner.ctaLabel'] = String(offer.ctaLabel || '').trim() || 'Grab the deal'
     update['homepage.offerBanner.ctaLink'] = String(offer.ctaLink || '').trim() || '/products?sort=discount'
     update['homepage.offerBanner.image.url'] = String(offer.image?.url || offer.imageUrl || '').trim()

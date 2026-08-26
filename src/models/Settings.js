@@ -78,6 +78,8 @@ const settingsSchema = new mongoose.Schema(
         title: { type: String, trim: true, default: 'Up to 50% off' },
         subtitle: { type: String, trim: true, default: 'today only' },
         description: { type: String, trim: true, default: 'Handpicked favourites at unbeatable prices. Grab yours before the deal ends.' },
+        price: { type: Number, min: 0, default: null },
+        originalPrice: { type: Number, min: 0, default: null },
         ctaLabel: { type: String, trim: true, default: 'Grab the deal' },
         ctaLink: { type: String, trim: true, default: '/products?sort=discount' },
         image: {
