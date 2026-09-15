@@ -47,7 +47,15 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
     throw new Error('Razorpay keys not configured')
   }
 
-  const razorpayOrder = await client.orders.create(options)
+  let razorpayOrder
+  try {
+    razorpayOrder = await client.orders.create(options)
+  } catch (err) {
+    console.error('Razorpay order creation failed:', err?.error || err?.message || err)
+    const errorDetail = err?.error?.description || err?.message || 'Failed to create payment order'
+    res.status(502)
+    throw new Error(`Razorpay order creation failed: ${errorDetail}`)
+  }
 
   res.json({
     success: true,
@@ -85,6 +93,10 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   if (!order) {
     res.status(404)
     throw new Error('Order not found')
+  }
+
+  if (order.isPaid) {
+    return res.json({ success: true, message: 'Payment already verified', order })
   }
 
   order.isPaid = true
