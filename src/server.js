@@ -55,6 +55,8 @@ app.use(cors({
     'http://localhost:5174',
     'https://arshmart.com',
     'https://www.arshmart.com',
+    'https://arsh-mart.vercel.app/',
+    ,
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
