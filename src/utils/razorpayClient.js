@@ -8,9 +8,18 @@ export const getRazorpayKeys = async () => {
     return { keyId: razorpayCache.keyId, keySecret: razorpayCache.keySecret, client: razorpayCache.client }
   }
 
-  const doc = await Settings.findOne({ singleton: 'global' }).select('integrations.razorpay').lean()
-  const keyId = doc?.integrations?.razorpay?.keyId || process.env.RAZORPAY_KEY_ID
-  const keySecret = doc?.integrations?.razorpay?.keySecret || process.env.RAZORPAY_KEY_SECRET
+  const envKeyId = process.env.RAZORPAY_KEY_ID?.trim()
+  const envKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim()
+
+  let keyId = envKeyId
+  let keySecret = envKeySecret
+
+  // Fallback to database settings only if environment variables are not configured
+  if (!keyId || !keySecret) {
+    const doc = await Settings.findOne({ singleton: 'global' }).select('integrations.razorpay').lean()
+    keyId = keyId || doc?.integrations?.razorpay?.keyId?.trim()
+    keySecret = keySecret || doc?.integrations?.razorpay?.keySecret?.trim()
+  }
 
   if (!keyId || !keySecret) {
     return { keyId: keyId || null, keySecret: keySecret || null, client: null }
