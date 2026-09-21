@@ -32,6 +32,8 @@ export const errorHandler = (err, req, res, next) => {
   res.status(statusCode).json({
     success: false,
     message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    // Never expose server internals from a deployed Vercel function, even if
+    // NODE_ENV was accidentally configured as development.
+    stack: process.env.NODE_ENV === 'development' && !process.env.VERCEL ? err.stack : undefined,
   })
 }
