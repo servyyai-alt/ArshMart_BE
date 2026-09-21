@@ -1,5 +1,13 @@
 import nodemailer from 'nodemailer'
 
+export class MailDeliveryError extends Error {
+  constructor(message, cause) {
+    super(message)
+    this.name = 'MailDeliveryError'
+    this.cause = cause
+  }
+}
+
 const boolFromEnv = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') return fallback
   const v = String(value).toLowerCase().trim()
@@ -20,7 +28,9 @@ const getMailConfig = () => {
 
 export const sendMail = async ({ to, subject, html, text }) => {
   const cfg = getMailConfig()
-  if (!cfg.host || !cfg.port || !cfg.user || !cfg.pass || !cfg.from) return
+  if (!cfg.host || !cfg.port || !cfg.user || !cfg.pass || !cfg.from) {
+    throw new MailDeliveryError('Email service is not configured. Please contact support.')
+  }
 
   const transporter = nodemailer.createTransport({
     host: cfg.host,
@@ -29,12 +39,17 @@ export const sendMail = async ({ to, subject, html, text }) => {
     auth: { user: cfg.user, pass: cfg.pass },
   })
 
-  await transporter.sendMail({
-    from: cfg.from,
-    to,
-    subject,
-    html,
-    text,
-  })
+  try {
+    await transporter.sendMail({
+      from: cfg.from,
+      to,
+      subject,
+      html,
+      text,
+    })
+  } catch (error) {
+    console.error('Password-reset email delivery failed:', error.message)
+    throw new MailDeliveryError('Unable to send the reset email right now. Please try again later.', error)
+  }
 }
 

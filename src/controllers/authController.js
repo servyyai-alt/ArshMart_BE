@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler'
 import User from '../models/User.js'
-import { sendMail } from '../utils/sendMail.js'
+import { MailDeliveryError, sendMail } from '../utils/sendMail.js'
 import { createHttpError } from '../utils/httpError.js'
 import {
   detectIdentifierType,
@@ -178,23 +178,31 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000))
+
+  try {
+    await sendMail({
+      to: user.email,
+      subject: 'Your password reset OTP',
+      text: `Your OTP for password reset is ${otp}. It expires in 10 minutes.`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+          <h2 style="margin:0 0 12px;">Password reset OTP</h2>
+          <p>Your one-time password is:</p>
+          <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0;">${otp}</div>
+          <p>This OTP expires in 10 minutes.</p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    if (error instanceof MailDeliveryError) {
+      throw createHttpError(503, error.message)
+    }
+    throw error
+  }
+
   user.resetPasswordOtp = otp
   user.resetPasswordOtpExpire = new Date(Date.now() + 10 * 60 * 1000)
   await user.save({ validateBeforeSave: false })
-
-  await sendMail({
-    to: user.email,
-    subject: 'Your password reset OTP',
-    text: `Your OTP for password reset is ${otp}. It expires in 10 minutes.`,
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
-        <h2 style="margin:0 0 12px;">Password reset OTP</h2>
-        <p>Your one-time password is:</p>
-        <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0;">${otp}</div>
-        <p>This OTP expires in 10 minutes.</p>
-      </div>
-    `,
-  })
 
   res.json({ success: true, message: 'OTP sent to your email' })
 })
